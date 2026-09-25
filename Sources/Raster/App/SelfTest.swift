@@ -26,6 +26,9 @@ enum SelfTest {
             ("testDefaults", testDefaults),
             ("testShortcutCodable", testShortcutCodable),
             ("testValidity", testValidity),
+            ("testPrefsDefaults", testPrefsDefaults),
+            ("testSetShortcutRemovesDuplicate", testSetShortcutRemovesDuplicate),
+            ("testResetShortcuts", testResetShortcuts),
         ]
         for (name, test) in tests {
             let before = failures
@@ -238,5 +241,50 @@ enum SelfTest {
         check(Shortcut(keyCode: 123, modifiers: [.command]).isValid, "⌘← ist gültig")
         check(Shortcut(keyCode: 122, modifiers: []).isValid, "F1 allein ist gültig")
         check(Shortcut(keyCode: 0, modifiers: [.control, .option]).carbonModifiers == UInt32(controlKey | optionKey), "Carbon-Modifier ⌃⌥")
+    }
+
+    // MARK: Einstellungen
+
+    /// Eigene, danach gelöschte Defaults-Domäne, damit die echten Einstellungen unberührt bleiben.
+    static func withTestDefaults(_ body: (UserDefaults) -> Void) {
+        let suite = "io.github.qvllasa.raster.selftest"
+        UserDefaults().removePersistentDomain(forName: suite)
+        let defaults = UserDefaults(suiteName: suite)!
+        body(defaults)
+        UserDefaults().removePersistentDomain(forName: suite)
+    }
+
+    static func testPrefsDefaults() {
+        withTestDefaults { defaults in
+            let prefs = Preferences(defaults: defaults)
+            check(prefs.shortcuts[.leftHalf] == WindowAction.leftHalf.defaultShortcut, "Standard ⌘← ohne gespeicherte Werte")
+            check(prefs.targetScreen == .mouse, "Zielbildschirm standardmäßig Maus")
+            check(prefs.repeatBehavior == .cycleWidth, "erneutes Drücken standardmäßig Breite wechseln")
+            check(prefs.gap == 0, "Abstand standardmäßig 0")
+        }
+    }
+
+    static func testSetShortcutRemovesDuplicate() {
+        withTestDefaults { defaults in
+            let prefs = Preferences(defaults: defaults)
+            let controlOptionA = Shortcut(keyCode: 0, modifiers: [.control, .option])
+            prefs.setShortcut(controlOptionA, for: .leftHalf)
+            check(prefs.shortcuts[.leftHalf] == controlOptionA, "neues Kürzel gesetzt")
+            check(prefs.shortcuts[.tileGrid] == nil, "Raster verliert das doppelte Kürzel")
+            let reloaded = Preferences(defaults: defaults)
+            check(reloaded.shortcuts[.leftHalf] == controlOptionA, "neues Kürzel bleibt nach Neustart")
+            check(reloaded.shortcuts[.tileGrid] == nil, "gelöschtes Kürzel bleibt gelöscht statt Standard")
+            check(reloaded.shortcuts[.rightHalf] == WindowAction.rightHalf.defaultShortcut, "andere Kürzel unverändert")
+        }
+    }
+
+    static func testResetShortcuts() {
+        withTestDefaults { defaults in
+            let prefs = Preferences(defaults: defaults)
+            prefs.setShortcut(nil, for: .maximize)
+            prefs.resetShortcuts()
+            check(prefs.shortcuts[.maximize] == WindowAction.maximize.defaultShortcut, "Zurücksetzen stellt ⌘↑ wieder her")
+            check(Preferences(defaults: defaults).shortcuts[.maximize] == WindowAction.maximize.defaultShortcut, "Zurücksetzen gespeichert")
+        }
     }
 }
