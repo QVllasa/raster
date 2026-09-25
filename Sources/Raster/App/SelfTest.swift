@@ -16,6 +16,12 @@ enum SelfTest {
             ("testFocusStack", testFocusStack),
             ("testTransfer", testTransfer),
             ("testClampKeepsEdge", testClampKeepsEdge),
+            ("testConversion", testConversion),
+            ("testConversionStackedScreens", testConversionStackedScreens),
+            ("testMouseOnSeam", testMouseOnSeam),
+            ("testWindowScreen", testWindowScreen),
+            ("testNeighbor", testNeighbor),
+            ("testCycle", testCycle),
         ]
         for (name, test) in tests {
             let before = failures
@@ -138,5 +144,61 @@ enum SelfTest {
         let bottom = CGRect(x: 0, y: 485, width: 1512, height: 460)
         same(LayoutMath.clamp(actual: CGRect(x: 0, y: 485, width: 1512, height: 600), target: bottom, visible: visible),
              CGRect(x: 0, y: 345, width: 1512, height: 600), "zu hohes Fenster bleibt unten bündig")
+    }
+
+    // MARK: ScreenGeometry
+
+    static func testConversion() {
+        same(ScreenGeometry.toAX(CGRect(x: 0, y: 0, width: 1512, height: 982), primaryHeight: 982),
+             CGRect(x: 0, y: 0, width: 1512, height: 982), "Hauptbildschirm bleibt gleich")
+        same(ScreenGeometry.toAX(CGRect(x: 0, y: 900, width: 100, height: 82), primaryHeight: 982),
+             CGRect(x: 0, y: 0, width: 100, height: 82), "Rechteck am oberen Rand → AX y = 0")
+        same(ScreenGeometry.toCocoa(CGRect(x: 0, y: 0, width: 100, height: 82), primaryHeight: 982),
+             CGRect(x: 0, y: 900, width: 100, height: 82), "Rückweg nach Cocoa")
+        let p = ScreenGeometry.toAX(point: CGPoint(x: 10, y: 982), primaryHeight: 982)
+        check(p == CGPoint(x: 10, y: 0), "Mauspunkt oben links → (10, 0), erhalten \(p)")
+    }
+
+    static func testConversionStackedScreens() {
+        same(ScreenGeometry.toAX(CGRect(x: 0, y: 982, width: 2560, height: 1440), primaryHeight: 982),
+             CGRect(x: 0, y: -1440, width: 2560, height: 1440), "Bildschirm über dem Hauptbildschirm hat negatives AX-y")
+        same(ScreenGeometry.toAX(CGRect(x: -300, y: -1080, width: 1920, height: 1080), primaryHeight: 982),
+             CGRect(x: -300, y: 982, width: 1920, height: 1080), "Bildschirm darunter, versetzt")
+    }
+
+    static func testMouseOnSeam() {
+        let side = [CGRect(x: 0, y: 0, width: 1512, height: 982), CGRect(x: 1512, y: 0, width: 2560, height: 1440)]
+        check(ScreenGeometry.screenIndex(containing: CGPoint(x: 1512, y: 100), in: side) == 1, "Punkt auf der Grenze → rechter Bildschirm")
+        check(ScreenGeometry.screenIndex(containing: CGPoint(x: 1511.5, y: 100), in: side) == 0, "Punkt knapp links → linker Bildschirm")
+        check(ScreenGeometry.screenIndex(containing: CGPoint(x: 3000, y: 1200), in: side) == 1, "Punkt unter dem MacBook, im großen Bildschirm")
+        let gap = [CGRect(x: 0, y: 0, width: 1000, height: 800), CGRect(x: 1100, y: 0, width: 1000, height: 800)]
+        check(ScreenGeometry.screenIndex(containing: CGPoint(x: 1080, y: 100), in: gap) == 1, "Punkt in Lücke → nächstgelegener")
+        check(ScreenGeometry.screenIndex(containing: CGPoint(x: 5, y: 5), in: []) == 0, "keine Bildschirme → 0")
+    }
+
+    static func testWindowScreen() {
+        let side = [CGRect(x: 0, y: 0, width: 1512, height: 982), CGRect(x: 1512, y: 0, width: 2560, height: 1440)]
+        check(ScreenGeometry.screenIndex(for: CGRect(x: 1300, y: 100, width: 1000, height: 600), in: side) == 1, "größere Überdeckung gewinnt")
+        check(ScreenGeometry.screenIndex(for: CGRect(x: 1000, y: 100, width: 800, height: 600), in: side) == 0, "größere Überdeckung links")
+        check(ScreenGeometry.screenIndex(for: CGRect(x: 9000, y: 100, width: 800, height: 600), in: side) == 1, "ganz außerhalb → nächster")
+    }
+
+    static let threeScreens = [CGRect(x: 0, y: 0, width: 1512, height: 982),
+                               CGRect(x: -1920, y: 0, width: 1920, height: 1080),
+                               CGRect(x: 1512, y: -200, width: 2560, height: 1440)]
+
+    static func testNeighbor() {
+        check(ScreenGeometry.neighbor(of: 0, direction: .left, in: threeScreens) == 1, "links vom MacBook")
+        check(ScreenGeometry.neighbor(of: 0, direction: .right, in: threeScreens) == 2, "rechts vom MacBook")
+        check(ScreenGeometry.neighbor(of: 1, direction: .left, in: threeScreens) == nil, "ganz links → nil")
+        check(ScreenGeometry.neighbor(of: 2, direction: .right, in: threeScreens) == nil, "ganz rechts → nil")
+        check(ScreenGeometry.neighbor(of: 2, direction: .left, in: threeScreens) == 0, "vom rechten der nächste links ist das MacBook")
+    }
+
+    static func testCycle() {
+        check(ScreenGeometry.cycle(from: 0, step: 1, in: threeScreens) == 2, "MacBook → rechts")
+        check(ScreenGeometry.cycle(from: 2, step: 1, in: threeScreens) == 1, "rechts → zyklisch ganz links")
+        check(ScreenGeometry.cycle(from: 1, step: -1, in: threeScreens) == 2, "ganz links rückwärts → ganz rechts")
+        check(ScreenGeometry.cycle(from: 0, step: 1, in: [threeScreens[0]]) == 0, "ein Bildschirm → bleibt")
     }
 }
