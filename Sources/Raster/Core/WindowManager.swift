@@ -25,6 +25,7 @@ final class WindowManager {
     private init() {}
 
     func perform(_ action: WindowAction) {
+        debugLog("Aktion \(action.rawValue), Freigabe \(Accessibility.shared.isTrusted), vorne \(NSWorkspace.shared.frontmostApplication?.localizedName ?? "-")")
         guard Accessibility.shared.isTrusted else {
             Accessibility.shared.request()
             onMissingPermission()
@@ -45,6 +46,7 @@ final class WindowManager {
         guard let app = NSWorkspace.shared.frontmostApplication, app.processIdentifier != ownPID,
               let window = AXWindow(focusedOf: app.processIdentifier), !window.isFullScreen,
               let frame = window.frame else {
+            debugLog("kein bewegbares Fenster gefunden")
             NSSound.beep()
             return
         }
@@ -53,6 +55,7 @@ final class WindowManager {
         let repeatStep = isSnapped && last?.key == key && last?.action == action ? last?.step : nil
         let visible = screens.map(\.visible)
         let target = targetScreenIndex(screens: screens, windowFrame: frame)
+        debugLog("Fenster \(frame), Zielbildschirm \(target), Wiederholung \(repeatStep.map(String.init) ?? "nein")")
 
         switch WindowPlanner.plan(action: action, window: frame, screens: visible, targetScreen: target,
                                   gap: prefs.gap, behavior: prefs.repeatBehavior, repeatStep: repeatStep) {
@@ -157,6 +160,10 @@ final class WindowManager {
                   screen.frame.contains(CGPoint(x: bounds.midX, y: bounds.midY)) else { return nil }
             return (pid, id)
         }
+    }
+
+    private func debugLog(_ message: @autoclosure () -> String) {
+        if ProcessInfo.processInfo.environment["RASTER_DEBUG"] != nil { print("[Raster]", message()) ; fflush(stdout) }
     }
 
     static func approximately(_ a: CGRect, _ b: CGRect) -> Bool {

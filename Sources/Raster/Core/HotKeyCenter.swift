@@ -62,12 +62,16 @@ final class HotKeyCenter {
             }
         }
         if failures != failed { failed = failures }
+        if ProcessInfo.processInfo.environment["RASTER_DEBUG"] != nil {
+            print("[Raster] \(refs.count) Kürzel registriert, \(failures.count) abgelehnt, Handler \(handler != nil)"); fflush(stdout)
+        }
     }
 
     private func installHandlerIfNeeded() {
         guard handler == nil else { return }
         var spec = EventTypeSpec(eventClass: OSType(kEventClassKeyboard), eventKind: UInt32(kEventHotKeyPressed))
         InstallEventHandler(GetApplicationEventTarget(), { _, event, _ -> OSStatus in
+            if ProcessInfo.processInfo.environment["RASTER_DEBUG"] != nil { print("[Raster] Hotkey-Ereignis"); fflush(stdout) }
             var id = EventHotKeyID()
             let status = GetEventParameter(event, EventParamName(kEventParamDirectObject), EventParamType(typeEventHotKeyID),
                                            nil, MemoryLayout<EventHotKeyID>.size, nil, &id)

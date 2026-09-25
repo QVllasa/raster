@@ -13,8 +13,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         registerShortcuts()
         firstRun()
 
-        if CommandLine.arguments.contains("--open") {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { self.controller.openPanel() }
+        // Diagnose: `--open` bzw. `--settings` öffnet das Panel direkt nach dem Start.
+        if CommandLine.arguments.contains("--open") || CommandLine.arguments.contains("--settings") {
+            let route: Route = CommandLine.arguments.contains("--settings") ? .settings : .overview
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { self.controller.openPanel(route: route) }
         }
     }
 
