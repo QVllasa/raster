@@ -58,7 +58,11 @@ final class Snapshot {
         let primaryHeight = NSScreen.screens.first?.frame.height ?? 0
         let f = panel.frame.insetBy(dx: -margin, dy: -margin)
         let rect = CGRect(x: f.minX, y: primaryHeight - f.maxY, width: f.width, height: f.height)
-        // onScreenBelowWindow (4) | includingWindow (8): Panel samt Schreibtisch dahinter; bestResolution = 8
+        // `--window-only`: nur das Panel (für die README, ohne persönlichen Schreibtisch);
+        // sonst onScreenBelowWindow (4) | includingWindow (8): Panel samt Schreibtisch dahinter; bestResolution = 8
+        if CommandLine.arguments.contains("--window-only") {
+            return fn(.null, 8, UInt32(panel.windowNumber), 1 | 8)?.takeRetainedValue()
+        }
         return fn(rect, 4 | 8, UInt32(panel.windowNumber), 8)?.takeRetainedValue()
     }
 
