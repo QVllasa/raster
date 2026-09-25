@@ -1,0 +1,142 @@
+import AppKit
+
+/// `Raster --selftest` prüft die reine Geometrie ohne echte Fenster (Exit-Code 0 = alles bestanden).
+enum SelfTest {
+    private static var failures = 0
+    private static var checks = 0
+
+    static func run() -> Int32 {
+        let tests: [(String, () -> Void)] = [
+            ("testHalves", testHalves),
+            ("testGap", testGap),
+            ("testThirds", testThirds),
+            ("testAlmostMaximizedAndCenter", testAlmostMaximizedAndCenter),
+            ("testGridCounts", testGridCounts),
+            ("testColumns", testColumns),
+            ("testFocusStack", testFocusStack),
+            ("testTransfer", testTransfer),
+            ("testClampKeepsEdge", testClampKeepsEdge),
+        ]
+        for (name, test) in tests {
+            let before = failures
+            test()
+            print(failures == before ? "✓ \(name)" : "✗ \(name)")
+        }
+        print(failures == 0 ? "alle Prüfungen bestanden (\(checks))" : "\(failures) von \(checks) Prüfungen fehlgeschlagen")
+        return failures == 0 ? 0 : 1
+    }
+
+    static func check(_ condition: Bool, _ message: @autoclosure () -> String) {
+        checks += 1
+        if !condition {
+            failures += 1
+            print("  FEHLER: \(message())")
+        }
+    }
+
+    static func same(_ a: CGRect, _ b: CGRect, _ label: String) {
+        let ok = abs(a.minX - b.minX) < 0.5 && abs(a.minY - b.minY) < 0.5
+            && abs(a.width - b.width) < 0.5 && abs(a.height - b.height) < 0.5
+        check(ok, "\(label): erwartet \(b), erhalten \(a)")
+    }
+
+    // MARK: LayoutMath
+
+    /// MacBook-Bildschirm in AX-Koordinaten: 25 pt Menüleiste oben, Dock ausgeblendet.
+    static let visible = CGRect(x: 0, y: 25, width: 1512, height: 920)
+
+    static func testHalves() {
+        same(LayoutMath.rect(for: .fraction(x: 0, y: 0, w: 0.5, h: 1), in: visible, gap: 0),
+             CGRect(x: 0, y: 25, width: 756, height: 920), "linke Hälfte")
+        same(LayoutMath.rect(for: .fraction(x: 0.5, y: 0, w: 0.5, h: 1), in: visible, gap: 0),
+             CGRect(x: 756, y: 25, width: 756, height: 920), "rechte Hälfte")
+        same(LayoutMath.rect(for: .fraction(x: 0, y: 0.5, w: 1, h: 0.5), in: visible, gap: 0),
+             CGRect(x: 0, y: 485, width: 1512, height: 460), "untere Hälfte")
+    }
+
+    static func testGap() {
+        same(LayoutMath.rect(for: .fraction(x: 0, y: 0, w: 0.5, h: 1), in: visible, gap: 10),
+             CGRect(x: 10, y: 35, width: 741, height: 900), "linke Hälfte mit Abstand")
+        same(LayoutMath.rect(for: .fraction(x: 0, y: 0, w: 1, h: 1), in: visible, gap: 10),
+             CGRect(x: 10, y: 35, width: 1492, height: 900), "Vollfläche mit Abstand")
+    }
+
+    static func testThirds() {
+        let twoThirds = LayoutMath.rect(for: .fraction(x: 0, y: 0, w: 2.0 / 3, h: 1), in: visible, gap: 0)
+        check(abs(twoThirds.width - 1008) < 0.5, "⅔ Breite 1008, erhalten \(twoThirds.width)")
+        same(LayoutMath.rect(for: .fraction(x: 2.0 / 3, y: 0, w: 1.0 / 3, h: 1), in: visible, gap: 0),
+             CGRect(x: 1008, y: 25, width: 504, height: 920), "rechtes Drittel")
+    }
+
+    static func testAlmostMaximizedAndCenter() {
+        same(LayoutMath.almostMaximized(in: visible),
+             CGRect(x: 75.6, y: 71, width: 1360.8, height: 828), "fast maximiert")
+        same(LayoutMath.centered(CGRect(x: 0, y: 25, width: 800, height: 600), in: visible),
+             CGRect(x: 356, y: 185, width: 800, height: 600), "zentriert")
+        same(LayoutMath.centered(CGRect(x: 0, y: 0, width: 2000, height: 1200), in: visible),
+             visible, "zu großes Fenster wird beim Zentrieren begrenzt")
+    }
+
+    static func testGridCounts() {
+        check(LayoutMath.grid(count: 0, in: visible, gap: 0).isEmpty, "0 Fenster → leer")
+        let one = LayoutMath.grid(count: 1, in: visible, gap: 0)
+        check(one.count == 1, "1 Fenster → 1 Rechteck")
+        if one.count == 1 { same(one[0], visible, "1 Fenster füllt alles") }
+        let two = LayoutMath.grid(count: 2, in: visible, gap: 0)
+        check(two.count == 2, "2 Fenster → 2 Rechtecke")
+        if two.count == 2 {
+            same(two[0], CGRect(x: 0, y: 25, width: 756, height: 920), "2er-Raster links")
+            same(two[1], CGRect(x: 756, y: 25, width: 756, height: 920), "2er-Raster rechts")
+        }
+        let three = LayoutMath.grid(count: 3, in: visible, gap: 0)
+        check(three.count == 3 && three.allSatisfy { abs($0.width - 504) < 0.5 && abs($0.height - 920) < 0.5 },
+              "3 Fenster → drei Spalten, erhalten \(three)")
+        let five = LayoutMath.grid(count: 5, in: visible, gap: 0)
+        check(five.count == 5, "5 Fenster → 5 Rechtecke")
+        if five.count == 5 {
+            same(five[0], CGRect(x: 0, y: 25, width: 504, height: 460), "5er-Raster oben links")
+            same(five[2], CGRect(x: 1008, y: 25, width: 504, height: 460), "5er-Raster oben rechts")
+            same(five[3], CGRect(x: 0, y: 485, width: 756, height: 460), "5er-Raster unten links (gestreckt)")
+            same(five[4], CGRect(x: 756, y: 485, width: 756, height: 460), "5er-Raster unten rechts (gestreckt)")
+        }
+        check(LayoutMath.grid(count: 9, in: visible, gap: 0).count == 9, "9 Fenster → 9 Rechtecke")
+    }
+
+    static func testColumns() {
+        let cols = LayoutMath.columns(count: 4, in: visible, gap: 0)
+        check(cols.count == 4 && cols.allSatisfy { abs($0.width - 378) < 0.5 }, "4 Spalten à 378, erhalten \(cols)")
+    }
+
+    static func testFocusStack() {
+        let stack = LayoutMath.focusStack(count: 3, in: visible, gap: 0)
+        check(stack.count == 3, "Fokus + 2 → 3 Rechtecke")
+        if stack.count == 3 {
+            same(stack[0], CGRect(x: 0, y: 25, width: 756, height: 920), "Fokusfenster links")
+            same(stack[1], CGRect(x: 756, y: 25, width: 756, height: 460), "Stapel oben")
+            same(stack[2], CGRect(x: 756, y: 485, width: 756, height: 460), "Stapel unten")
+        }
+        let single = LayoutMath.focusStack(count: 1, in: visible, gap: 0)
+        check(single.count == 1 && single.first == visible, "Fokus allein → Vollfläche")
+    }
+
+    static func testTransfer() {
+        let target = CGRect(x: 1512, y: -400, width: 2560, height: 1415)
+        same(LayoutMath.transfer(CGRect(x: 0, y: 25, width: 756, height: 920), from: visible, to: target),
+             CGRect(x: 1512, y: -400, width: 1280, height: 1415), "linke Hälfte → linke Hälfte des großen Bildschirms")
+        let small = CGRect(x: 0, y: 0, width: 800, height: 500)
+        let moved = LayoutMath.transfer(CGRect(x: 0, y: 25, width: 1512, height: 920), from: visible, to: small)
+        check(small.contains(moved), "Übertragung bleibt innerhalb des Zielbildschirms")
+    }
+
+    static func testClampKeepsEdge() {
+        let target = CGRect(x: 756, y: 25, width: 756, height: 920)
+        same(LayoutMath.clamp(actual: CGRect(x: 756, y: 25, width: 900, height: 920), target: target, visible: visible),
+             CGRect(x: 612, y: 25, width: 900, height: 920), "zu breites Fenster bleibt rechts bündig")
+        let left = CGRect(x: 0, y: 25, width: 756, height: 920)
+        same(LayoutMath.clamp(actual: CGRect(x: 0, y: 25, width: 900, height: 920), target: left, visible: visible),
+             CGRect(x: 0, y: 25, width: 900, height: 920), "zu breites Fenster bleibt links bündig")
+        let bottom = CGRect(x: 0, y: 485, width: 1512, height: 460)
+        same(LayoutMath.clamp(actual: CGRect(x: 0, y: 485, width: 1512, height: 600), target: bottom, visible: visible),
+             CGRect(x: 0, y: 345, width: 1512, height: 600), "zu hohes Fenster bleibt unten bündig")
+    }
+}
