@@ -36,6 +36,13 @@ enum LayoutMath {
     /// Raster für n Fenster: rows = ⌊√n⌋, cols = ⌈n/rows⌉. Die letzte Zeile verteilt ihre Fenster
     /// über die volle Breite, damit keine Lücke bleibt.
     static func grid(count: Int, in visible: CGRect, gap: CGFloat) -> [CGRect] {
+        gridFractions(count: count).map {
+            rect(for: .fraction(x: $0.minX, y: $0.minY, w: $0.width, h: $0.height), in: visible, gap: gap)
+        }
+    }
+
+    /// Rasterzellen im Einheitsquadrat (Grundlage für `grid` und die Kachel-Vorschau).
+    static func gridFractions(count: Int) -> [CGRect] {
         guard count > 0 else { return [] }
         let rows = max(1, Int(Double(count).squareRoot()))
         let cols = Int((Double(count) / Double(rows)).rounded(.up))
@@ -43,9 +50,8 @@ enum LayoutMath {
         for row in 0..<rows {
             let inRow = row == rows - 1 ? count - cols * (rows - 1) : cols
             for col in 0..<inRow {
-                let region = Region.fraction(x: Double(col) / Double(inRow), y: Double(row) / Double(rows),
-                                             w: 1 / Double(inRow), h: 1 / Double(rows))
-                result.append(rect(for: region, in: visible, gap: gap))
+                result.append(CGRect(x: Double(col) / Double(inRow), y: Double(row) / Double(rows),
+                                     width: 1 / Double(inRow), height: 1 / Double(rows)))
             }
         }
         return result

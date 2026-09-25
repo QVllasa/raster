@@ -1,4 +1,5 @@
 import AppKit
+import Carbon
 
 /// `Raster --selftest` prüft die reine Geometrie ohne echte Fenster (Exit-Code 0 = alles bestanden).
 enum SelfTest {
@@ -22,6 +23,9 @@ enum SelfTest {
             ("testWindowScreen", testWindowScreen),
             ("testNeighbor", testNeighbor),
             ("testCycle", testCycle),
+            ("testDefaults", testDefaults),
+            ("testShortcutCodable", testShortcutCodable),
+            ("testValidity", testValidity),
         ]
         for (name, test) in tests {
             let before = failures
@@ -200,5 +204,39 @@ enum SelfTest {
         check(ScreenGeometry.cycle(from: 2, step: 1, in: threeScreens) == 1, "rechts → zyklisch ganz links")
         check(ScreenGeometry.cycle(from: 1, step: -1, in: threeScreens) == 2, "ganz links rückwärts → ganz rechts")
         check(ScreenGeometry.cycle(from: 0, step: 1, in: [threeScreens[0]]) == 0, "ein Bildschirm → bleibt")
+    }
+
+    // MARK: Aktionen und Kürzel
+
+    static func testDefaults() {
+        let left = WindowAction.leftHalf.defaultShortcut
+        check(left?.keyCode == 123 && left?.modifiers == NSEvent.ModifierFlags.command.rawValue, "linke Hälfte = ⌘← wie SplitScreen")
+        check(left?.displayString == "⌘←", "Anzeige ⌘←, erhalten \(left?.displayString ?? "nil")")
+        check(WindowAction.rightHalf.defaultShortcut?.displayString == "⌘→", "rechte Hälfte = ⌘→")
+        check(WindowAction.maximize.defaultShortcut?.displayString == "⌘↑", "Maximieren = ⌘↑")
+        check(WindowAction.tileGrid.defaultShortcut?.displayString == "⌃⌥A", "Raster = ⌃⌥A, erhalten \(WindowAction.tileGrid.defaultShortcut?.displayString ?? "nil")")
+        check(WindowAction.nextDisplay.defaultShortcut?.displayString == "⌃⌥⌘→", "nächster Bildschirm = ⌃⌥⌘→")
+        check(WindowAction.restore.defaultShortcut?.displayString == "⌃⌥⌫", "Wiederherstellen = ⌃⌥⌫")
+        let all = WindowAction.allCases.compactMap(\.defaultShortcut)
+        check(all.count == WindowAction.allCases.count, "jede Aktion hat ein Standardkürzel")
+        check(Set(all).count == all.count, "keine doppelten Standardkürzel")
+        check(WindowAction.allCases.allSatisfy { !$0.preview.isEmpty }, "jede Aktion hat eine Vorschau")
+        check(WindowAction.allCases.allSatisfy { !$0.title.isEmpty }, "jede Aktion hat einen Titel")
+    }
+
+    static func testShortcutCodable() {
+        let original = Shortcut(keyCode: 0, modifiers: [.control, .option])
+        let data = try? JSONEncoder().encode([WindowAction.tileGrid.rawValue: original])
+        let decoded = data.flatMap { try? JSONDecoder().decode([String: Shortcut].self, from: $0) }
+        check(decoded?[WindowAction.tileGrid.rawValue] == original, "Kürzel übersteht JSON-Rundreise")
+    }
+
+    static func testValidity() {
+        check(!Shortcut(keyCode: 0, modifiers: [.option]).isValid, "⌥A ist ungültig")
+        check(!Shortcut(keyCode: 0, modifiers: [.shift]).isValid, "⇧A ist ungültig")
+        check(Shortcut(keyCode: 0, modifiers: [.control, .option]).isValid, "⌃⌥A ist gültig")
+        check(Shortcut(keyCode: 123, modifiers: [.command]).isValid, "⌘← ist gültig")
+        check(Shortcut(keyCode: 122, modifiers: []).isValid, "F1 allein ist gültig")
+        check(Shortcut(keyCode: 0, modifiers: [.control, .option]).carbonModifiers == UInt32(controlKey | optionKey), "Carbon-Modifier ⌃⌥")
     }
 }
