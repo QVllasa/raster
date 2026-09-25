@@ -44,7 +44,7 @@ final class WindowManager {
 
     private func moveFocusedWindow(_ action: WindowAction, screens: [ScreenInfo]) {
         guard let app = NSWorkspace.shared.frontmostApplication, app.processIdentifier != ownPID,
-              let window = AXWindow(focusedOf: app.processIdentifier), !window.isFullScreen,
+              let window = AXWindow(focusedOf: app.processIdentifier), !window.isFullScreen, window.canMove,
               let frame = window.frame else {
             debugLog("kein bewegbares Fenster gefunden")
             NSSound.beep()
@@ -61,13 +61,20 @@ final class WindowManager {
                                   gap: prefs.gap, behavior: prefs.repeatBehavior, repeatStep: repeatStep) {
         case .restore:
             guard let previous = original[key] else { NSSound.beep(); return }
-            window.setFrame(previous)
+            window.setFrame(LayoutMath.fit(previous, into: visible))
             original[key] = nil
             snapped[key] = nil
             last = nil
         case let .frame(rect, step, screen)?:
+            let after = apply(rect, to: window, visible: visible[screen])
+            // Hat sich nichts bewegt (Fenster lehnt Änderungen ab), nichts merken – sonst gälte es als eingerastet.
+            guard Self.didMove(before: frame, after: after, target: rect) else {
+                debugLog("Fenster hat die Änderung abgelehnt")
+                NSSound.beep()
+                return
+            }
             if !isSnapped { original[key] = frame }
-            snapped[key] = apply(rect, to: window, visible: visible[screen])
+            snapped[key] = after
             last = (key, action, step)
         case nil:
             NSSound.beep()
@@ -79,8 +86,7 @@ final class WindowManager {
     private func apply(_ rect: CGRect, to window: AXWindow, visible: CGRect) -> CGRect {
         window.setFrame(rect)
         guard let actual = window.frame else { return rect }
-        let fixed = LayoutMath.clamp(actual: actual, target: rect, visible: visible)
-        if !Self.approximately(fixed, actual) {
+        if let fixed = LayoutMath.correction(actual: actual, target: rect, visible: visible) {
             window.setPosition(fixed.origin)
             return window.frame ?? fixed
         }
@@ -90,10 +96,12 @@ final class WindowManager {
     // MARK: Alle Fenster eines Bildschirms
 
     private func tile(_ action: WindowAction, screens: [ScreenInfo]) {
-        let focusedFrame = NSWorkspace.shared.frontmostApplication
-            .flatMap { AXWindow(focusedOf: $0.processIdentifier) }?.frame
-        let screen = screens[targetScreenIndex(screens: screens, windowFrame: focusedFrame)]
-        let windows = visibleWindows(on: screen)
+        let focused = NSWorkspace.shared.frontmostApplication.flatMap { AXWindow(focusedOf: $0.processIdentifier) }
+        let screen = screens[targetScreenIndex(screens: screens, windowFrame: focused?.frame)]
+        let found = visibleWindows(on: screen)
+        // Das fokussierte Fenster kommt zuerst (oben links bzw. „Fokus“ links), der Rest in Z-Reihenfolge.
+        let order = Self.focusFirst(found.indices.map { $0 }, focused: found.firstIndex { $0.id != nil && $0.id == focused?.id })
+        let windows = order.map { found[$0] }
         guard !windows.isEmpty else { NSSound.beep(); return }
 
         let rects: [CGRect]
@@ -166,7 +174,18 @@ final class WindowManager {
         if ProcessInfo.processInfo.environment["RASTER_DEBUG"] != nil { print("[Raster]", message()) ; fflush(stdout) }
     }
 
-    static func approximately(_ a: CGRect, _ b: CGRect) -> Bool {
-        abs(a.minX - b.minX) <= 2 && abs(a.minY - b.minY) <= 2 && abs(a.width - b.width) <= 2 && abs(a.height - b.height) <= 2
+    static func approximately(_ a: CGRect, _ b: CGRect) -> Bool { a.isClose(to: b) }
+
+    /// Stellt `focused` an den Anfang, die übrige Reihenfolge bleibt.
+    nonisolated static func focusFirst<T: Equatable>(_ items: [T], focused: T?) -> [T] {
+        guard let focused, let index = items.firstIndex(of: focused) else { return items }
+        var result = items
+        result.remove(at: index)
+        return [focused] + result
+    }
+
+    /// Erfolgreich, wenn sich das Fenster verändert hat oder schon am Ziel stand.
+    nonisolated static func didMove(before: CGRect, after: CGRect, target: CGRect) -> Bool {
+        !before.isClose(to: after) || before.isClose(to: target)
     }
 }

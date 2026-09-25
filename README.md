@@ -59,7 +59,7 @@ Voraussetzung ist **macOS 26 (Tahoe)** oder neuer, weil Raster das neue Liquid-G
 
 ## Datenschutz
 
-Raster sammelt nichts, sendet nichts und stellt keine einzige Netzwerkverbindung her. Die Freigabe „Bedienungshilfen“ wird ausschließlich genutzt, um Position und Größe von Fenstern zu lesen und zu setzen. Der gesamte Quelltext liegt hier – rund 2 000 Zeilen Swift, ohne Fremdbibliotheken.
+Raster sammelt nichts, sendet nichts und stellt keine einzige Netzwerkverbindung her. Die Freigabe „Bedienungshilfen“ wird ausschließlich genutzt, um Position und Größe von Fenstern zu lesen und zu setzen. Der gesamte Quelltext liegt hier – rund 2 400 Zeilen Swift, ohne Fremdbibliotheken.
 
 ## Selbst bauen
 

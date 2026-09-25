@@ -43,6 +43,12 @@ struct AXWindow {
         return CGRect(origin: point, size: extent)
     }
 
+    /// Position lässt sich setzen (Sheets und manche Dialoge erlauben das nicht).
+    var canMove: Bool {
+        var settable = DarwinBoolean(false)
+        return AXUIElementIsAttributeSettable(element, kAXPositionAttribute as CFString, &settable) == .success && settable.boolValue
+    }
+
     var isStandard: Bool { (Self.copy(element, kAXSubroleAttribute) as? String) == kAXStandardWindowSubrole }
     var isMinimized: Bool { (Self.copy(element, kAXMinimizedAttribute) as? Bool) ?? false }
     var isFullScreen: Bool { (Self.copy(element, "AXFullScreen") as? Bool) ?? false }

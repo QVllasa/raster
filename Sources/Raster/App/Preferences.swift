@@ -45,16 +45,18 @@ final class Preferences {
     private(set) var shortcuts: [WindowAction: Shortcut]
     var launchAtLogin: Bool {
         didSet {
-            guard launchAtLogin != oldValue else { return }
+            guard launchAtLogin != oldValue, !isSyncingLoginItem else { return }
             do {
                 if launchAtLogin { try SMAppService.mainApp.register() } else { try SMAppService.mainApp.unregister() }
             } catch {
                 NSLog("Raster: Anmeldeobjekt konnte nicht geändert werden: \(error)")
             }
-            let actual = SMAppService.mainApp.status == .enabled
-            if actual != launchAtLogin { launchAtLogin = actual }
+            syncLoginItem()
         }
     }
+    /// macOS hat den Autostart registriert, wartet aber auf Genehmigung in den Systemeinstellungen.
+    private(set) var loginItemNeedsApproval = false
+    @ObservationIgnored private var isSyncingLoginItem = false
 
     init(defaults: UserDefaults) {
         self.defaults = defaults
@@ -67,7 +69,23 @@ final class Preferences {
         repeatBehavior = RepeatBehavior(rawValue: defaults.string(forKey: "repeatBehavior") ?? "") ?? .cycleWidth
         gap = defaults.double(forKey: "gap")
         shortcuts = Self.loadShortcuts(from: defaults)
-        launchAtLogin = SMAppService.mainApp.status == .enabled
+        let status = SMAppService.mainApp.status
+        launchAtLogin = Self.isLoginItemOn(status)
+        loginItemNeedsApproval = status == .requiresApproval
+    }
+
+    /// „Genehmigung erforderlich“ zählt als an – sonst würde der gerade angelegte Eintrag sofort wieder abgemeldet.
+    static func isLoginItemOn(_ status: SMAppService.Status) -> Bool {
+        status == .enabled || status == .requiresApproval
+    }
+
+    /// Gleicht den Schalter mit dem tatsächlichen Systemzustand ab, ohne erneut zu (de)registrieren.
+    func syncLoginItem() {
+        let status = SMAppService.mainApp.status
+        isSyncingLoginItem = true
+        launchAtLogin = Self.isLoginItemOn(status)
+        loginItemNeedsApproval = status == .requiresApproval
+        isSyncingLoginItem = false
     }
 
     /// Setzt oder löscht ein Kürzel. Hatte eine andere Aktion dieselbe Kombination, verliert sie sie.

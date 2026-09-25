@@ -35,6 +35,11 @@ enum SelfTest {
             ("testPlanMoveToNeighbor", testPlanMoveToNeighbor),
             ("testPlanDisplays", testPlanDisplays),
             ("testPlanMaximizeToggles", testPlanMaximizeToggles),
+            ("testLoginItemStatusMapping", testLoginItemStatusMapping),
+            ("testSnapOutcomeDetectsNoMove", testSnapOutcomeDetectsNoMove),
+            ("testCorrectionSkipsStaleReadback", testCorrectionSkipsStaleReadback),
+            ("testRestoreOntoMissingScreen", testRestoreOntoMissingScreen),
+            ("testFocusedWindowComesFirst", testFocusedWindowComesFirst),
         ]
         for (name, test) in tests {
             let before = failures
@@ -371,5 +376,53 @@ enum SelfTest {
         check(plan(.maximize, window: macBook, target: 0, repeatOf: 0) == .restore, "⌘↑ auf maximiertem Fenster → wiederherstellen")
         check(plan(.restore, window: macBook, target: 0) == .restore, "Wiederherstellen → restore")
         check(plan(.tileGrid, window: macBook, target: 0) == nil, "Alle-Fenster-Aktionen plant der WindowManager selbst")
+    }
+
+    // MARK: Review-Befunde
+
+    static func testLoginItemStatusMapping() {
+        check(Preferences.isLoginItemOn(.enabled), "aktiviert → an")
+        check(Preferences.isLoginItemOn(.requiresApproval), "Genehmigung ausstehend → bleibt an (nicht abmelden)")
+        check(!Preferences.isLoginItemOn(.notRegistered), "nicht registriert → aus")
+        check(!Preferences.isLoginItemOn(.notFound), "nicht gefunden → aus")
+    }
+
+    static func testSnapOutcomeDetectsNoMove() {
+        let before = CGRect(x: 200, y: 150, width: 600, height: 400)
+        let target = CGRect(x: 0, y: 25, width: 756, height: 920)
+        check(!WindowManager.didMove(before: before, after: before, target: target),
+              "Fenster unverändert, obwohl Ziel anders → nicht bewegt (Signalton, nichts merken)")
+        check(WindowManager.didMove(before: before, after: target, target: target), "Ziel erreicht → bewegt")
+        check(WindowManager.didMove(before: target, after: target, target: target), "stand schon am Ziel → gilt als erfolgreich")
+        check(WindowManager.didMove(before: before, after: CGRect(x: 0, y: 25, width: 900, height: 920), target: target),
+              "Mindestgröße, aber bewegt → bewegt")
+    }
+
+    static func testCorrectionSkipsStaleReadback() {
+        let target = CGRect(x: 756, y: 25, width: 756, height: 920)
+        let minSize = CGRect(x: 756, y: 25, width: 900, height: 920)
+        same(LayoutMath.correction(actual: minSize, target: target, visible: visible) ?? .null,
+             CGRect(x: 612, y: 25, width: 900, height: 920), "Mindestgröße am Ziel → an rechte Kante korrigieren")
+        let stale = CGRect(x: 200, y: 150, width: 1200, height: 800)
+        check(LayoutMath.correction(actual: stale, target: target, visible: visible) == nil,
+              "veraltetes Rückleserechteck (Position nicht angekommen) → keine Korrektur")
+        check(LayoutMath.correction(actual: target, target: target, visible: visible) == nil, "passt genau → keine Korrektur")
+    }
+
+    static func testRestoreOntoMissingScreen() {
+        let onMonitor = CGRect(x: 2000, y: 100, width: 800, height: 600)
+        same(LayoutMath.fit(onMonitor, into: pair), onMonitor, "Bildschirm noch da → unverändert")
+        let fitted = LayoutMath.fit(onMonitor, into: [macBook])
+        check(macBook.contains(fitted), "Monitor abgesteckt → Fenster landet vollständig auf dem MacBook, erhalten \(fitted)")
+        check(abs(fitted.width - 800) < 0.5 && abs(fitted.height - 600) < 0.5, "Größe bleibt, wenn sie passt")
+        let huge = LayoutMath.fit(CGRect(x: 3000, y: 0, width: 2400, height: 1400), into: [macBook])
+        check(macBook.contains(huge), "zu großes Fenster wird auf den Bildschirm begrenzt")
+    }
+
+    static func testFocusedWindowComesFirst() {
+        check(WindowManager.focusFirst([7, 3, 9], focused: 9) == [9, 7, 3], "fokussiertes Fenster nach vorn, Rest in Z-Reihenfolge")
+        check(WindowManager.focusFirst([7, 3, 9], focused: 7) == [7, 3, 9], "schon vorn → unverändert")
+        check(WindowManager.focusFirst([7, 3, 9], focused: 42) == [7, 3, 9], "Fokus auf anderem Bildschirm → unverändert")
+        check(WindowManager.focusFirst([7, 3, 9], focused: Int?.none) == [7, 3, 9], "kein Fokus → unverändert")
     }
 }

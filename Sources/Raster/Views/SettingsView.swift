@@ -1,3 +1,4 @@
+import ServiceManagement
 import SwiftUI
 
 struct SettingsView: View {
@@ -37,6 +38,18 @@ struct SettingsView: View {
                         .frame(width: 38, alignment: .trailing)
                 }
                 SwitchRow(title: "Beim Anmelden starten", isOn: $prefs.launchAtLogin)
+                if prefs.loginItemNeedsApproval {
+                    HStack(spacing: 8) {
+                        Image(systemName: "exclamationmark.circle.fill").foregroundStyle(.orange)
+                        Text("macOS wartet auf deine Erlaubnis für den Autostart.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Spacer(minLength: 4)
+                        Button("Erlauben") { SMAppService.openSystemSettingsLoginItems() }
+                            .buttonStyle(.glass)
+                            .controlSize(.small)
+                    }
+                }
             }
             .font(.callout)
 

@@ -105,7 +105,40 @@ enum LayoutMath {
     }
 }
 
+extension LayoutMath {
+    /// Korrektur nach dem Setzen: nur wenn die Position angekommen ist und das Fenster wegen einer Mindestgröße
+    /// größer blieb. Ist die Position noch nicht angekommen (App reagiert verzögert), ist das Rückleserechteck
+    /// veraltet – dann nichts korrigieren. nil = keine Korrektur nötig.
+    static func correction(actual: CGRect, target: CGRect, visible: CGRect) -> CGRect? {
+        guard abs(actual.minX - target.minX) <= 2, abs(actual.minY - target.minY) <= 2 else { return nil }
+        let fixed = clamp(actual: actual, target: target, visible: visible)
+        return fixed.isClose(to: actual) ? nil : fixed
+    }
+
+    /// Holt ein Rechteck auf einen vorhandenen Bildschirm zurück, falls es auf keinem mehr greifbar ist
+    /// (z. B. „Wiederherstellen“, nachdem der Monitor abgesteckt wurde).
+    static func fit(_ rect: CGRect, into screens: [CGRect]) -> CGRect {
+        let reachable = screens.contains { screen in
+            let cut = screen.intersection(rect)
+            return !cut.isNull && cut.width >= 60 && cut.height >= 40
+        }
+        guard !reachable, !screens.isEmpty else { return rect }
+        let screen = screens[ScreenGeometry.screenIndex(for: rect, in: screens)]
+        let width = min(rect.width, screen.width)
+        let height = min(rect.height, screen.height)
+        let x = min(max(rect.minX, screen.minX), screen.maxX - width)
+        let y = min(max(rect.minY, screen.minY), screen.maxY - height)
+        return CGRect(x: x, y: y, width: width, height: height)
+    }
+}
+
 extension CGRect {
+    /// Gleich bis auf 2 pt – Apps runden Fenstergrößen gern (Terminal auf Zeichenraster).
+    func isClose(to other: CGRect) -> Bool {
+        abs(minX - other.minX) <= 2 && abs(minY - other.minY) <= 2
+            && abs(width - other.width) <= 2 && abs(height - other.height) <= 2
+    }
+
     /// Auf ganze Punkte runden, ohne Kanten benachbarter Zellen auseinanderlaufen zu lassen.
     var integralish: CGRect {
         let minX = self.minX.rounded(), minY = self.minY.rounded()

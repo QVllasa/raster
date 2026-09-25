@@ -63,6 +63,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
     func openPanel(route: Route? = nil) {
         if let route { state.route = route }
         state.refreshSummary()
+        prefs.syncLoginItem()
         positionPanel()
         panel.alphaValue = 0
         panel.makeKeyAndOrderFront(nil)
