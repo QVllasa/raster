@@ -29,6 +29,12 @@ enum SelfTest {
             ("testPrefsDefaults", testPrefsDefaults),
             ("testSetShortcutRemovesDuplicate", testSetShortcutRemovesDuplicate),
             ("testResetShortcuts", testResetShortcuts),
+            ("testPlanFirstPressUsesTargetScreen", testPlanFirstPressUsesTargetScreen),
+            ("testPlanCycleWidth", testPlanCycleWidth),
+            ("testPlanRepeatNone", testPlanRepeatNone),
+            ("testPlanMoveToNeighbor", testPlanMoveToNeighbor),
+            ("testPlanDisplays", testPlanDisplays),
+            ("testPlanMaximizeToggles", testPlanMaximizeToggles),
         ]
         for (name, test) in tests {
             let before = failures
@@ -286,5 +292,84 @@ enum SelfTest {
             check(prefs.shortcuts[.maximize] == WindowAction.maximize.defaultShortcut, "Zurücksetzen stellt ⌘↑ wieder her")
             check(Preferences(defaults: defaults).shortcuts[.maximize] == WindowAction.maximize.defaultShortcut, "Zurücksetzen gespeichert")
         }
+    }
+
+    // MARK: WindowPlanner
+
+    /// MacBook links, großer Monitor rechts (sichtbare Flächen in AX-Koordinaten).
+    static let macBook = CGRect(x: 0, y: 25, width: 1512, height: 920)
+    static let monitor = CGRect(x: 1512, y: -200, width: 2560, height: 1415)
+    static let pair = [macBook, monitor]
+
+    static func plan(_ action: WindowAction, window: CGRect, target: Int, repeatOf step: Int? = nil,
+                     behavior: RepeatBehavior = .cycleWidth) -> WindowPlanner.Result? {
+        WindowPlanner.plan(action: action, window: window, screens: pair, targetScreen: target,
+                           gap: 0, behavior: behavior, repeatStep: step)
+    }
+
+    static func frame(_ result: WindowPlanner.Result?) -> CGRect? {
+        if case let .frame(rect, _, _)? = result { return rect }
+        return nil
+    }
+
+    static func testPlanFirstPressUsesTargetScreen() {
+        let window = CGRect(x: 100, y: 100, width: 700, height: 500) // liegt auf dem MacBook
+        same(frame(plan(.leftHalf, window: window, target: 1)) ?? .null,
+             CGRect(x: 1512, y: -200, width: 1280, height: 1415), "⌘← mit Maus auf dem Monitor → linke Hälfte des Monitors")
+        same(frame(plan(.rightHalf, window: window, target: 0)) ?? .null,
+             CGRect(x: 756, y: 25, width: 756, height: 920), "⌘→ auf dem MacBook")
+        same(frame(plan(.center, window: window, target: 1)) ?? .null,
+             CGRect(x: 2442, y: 257.5, width: 700, height: 500), "Zentrieren auf dem Zielbildschirm, Größe bleibt")
+    }
+
+    static func testPlanCycleWidth() {
+        let half = CGRect(x: 0, y: 25, width: 756, height: 920)
+        let second = plan(.leftHalf, window: half, target: 1, repeatOf: 0)
+        same(frame(second) ?? .null, CGRect(x: 0, y: 25, width: 1008, height: 920),
+             "2. Druck → ⅔ auf dem Bildschirm des Fensters (nicht dem der Maus)")
+        if case let .frame(_, step, _)? = second { check(step == 1, "Schritt 1 nach 2. Druck") }
+        same(frame(plan(.leftHalf, window: half, target: 0, repeatOf: 1)) ?? .null,
+             CGRect(x: 0, y: 25, width: 504, height: 920), "3. Druck → ⅓")
+        same(frame(plan(.leftHalf, window: half, target: 0, repeatOf: 2)) ?? .null,
+             CGRect(x: 0, y: 25, width: 756, height: 920), "4. Druck → wieder ½")
+        same(frame(plan(.rightHalf, window: half, target: 0, repeatOf: 0)) ?? .null,
+             CGRect(x: 504, y: 25, width: 1008, height: 920), "rechte Hälfte → rechte ⅔")
+    }
+
+    static func testPlanRepeatNone() {
+        let half = CGRect(x: 0, y: 25, width: 756, height: 920)
+        same(frame(plan(.leftHalf, window: half, target: 0, repeatOf: 0, behavior: .none)) ?? .null,
+             half, "ohne Wiederholungsverhalten bleibt es bei ½")
+    }
+
+    static func testPlanMoveToNeighbor() {
+        let rightHalf = CGRect(x: 756, y: 25, width: 756, height: 920)
+        same(frame(plan(.rightHalf, window: rightHalf, target: 0, repeatOf: 0, behavior: .moveToNeighbor)) ?? .null,
+             CGRect(x: 1512, y: -200, width: 1280, height: 1415), "rechte Hälfte erneut → linke Hälfte des rechten Monitors")
+        let monitorRight = CGRect(x: 2792, y: -200, width: 1280, height: 1415)
+        same(frame(plan(.rightHalf, window: monitorRight, target: 1, repeatOf: 0, behavior: .moveToNeighbor)) ?? .null,
+             monitorRight, "ganz rechts gibt es keinen Nachbarn → bleibt")
+        let monitorLeft = CGRect(x: 1512, y: -200, width: 1280, height: 1415)
+        same(frame(plan(.leftHalf, window: monitorLeft, target: 1, repeatOf: 0, behavior: .moveToNeighbor)) ?? .null,
+             CGRect(x: 756, y: 25, width: 756, height: 920), "linke Hälfte erneut → rechte Hälfte des linken Bildschirms")
+    }
+
+    static func testPlanDisplays() {
+        let leftHalf = CGRect(x: 0, y: 25, width: 756, height: 920)
+        same(frame(plan(.nextDisplay, window: leftHalf, target: 0)) ?? .null,
+             CGRect(x: 1512, y: -200, width: 1280, height: 1415), "nächster Bildschirm überträgt die linke Hälfte proportional")
+        same(frame(plan(.previousDisplay, window: leftHalf, target: 0)) ?? .null,
+             CGRect(x: 1512, y: -200, width: 1280, height: 1415), "bei zwei Bildschirmen ist der vorherige derselbe (zyklisch)")
+        let single = WindowPlanner.plan(action: .nextDisplay, window: leftHalf, screens: [macBook], targetScreen: 0,
+                                        gap: 0, behavior: .cycleWidth, repeatStep: nil)
+        check(single == nil, "nur ein Bildschirm → nichts zu tun")
+    }
+
+    static func testPlanMaximizeToggles() {
+        same(frame(plan(.maximize, window: CGRect(x: 10, y: 40, width: 500, height: 400), target: 0)) ?? .null,
+             macBook, "⌘↑ maximiert")
+        check(plan(.maximize, window: macBook, target: 0, repeatOf: 0) == .restore, "⌘↑ auf maximiertem Fenster → wiederherstellen")
+        check(plan(.restore, window: macBook, target: 0) == .restore, "Wiederherstellen → restore")
+        check(plan(.tileGrid, window: macBook, target: 0) == nil, "Alle-Fenster-Aktionen plant der WindowManager selbst")
     }
 }

@@ -1,0 +1,165 @@
+import AppKit
+
+/// Eindeutiger Schlüssel eines Fensters über App-Grenzen hinweg.
+struct WindowKey: Hashable {
+    let pid: pid_t
+    let windowID: CGWindowID
+}
+
+/// Führt Aktionen an echten Fenstern aus: Zielbildschirm bestimmen, planen, per Accessibility setzen.
+@MainActor
+final class WindowManager {
+    static let shared = WindowManager()
+
+    /// Wird aufgerufen, wenn eine Aktion an der fehlenden Freigabe scheitert (Panel mit Hinweis öffnen).
+    var onMissingPermission: () -> Void = {}
+
+    private let prefs = Preferences.shared
+    /// Fenstergröße vor dem ersten Einrasten – für „Wiederherstellen“.
+    private var original: [WindowKey: CGRect] = [:]
+    /// Rechteck, das Raster zuletzt gesetzt hat – solange das Fenster so steht, gilt es als eingerastet.
+    private var snapped: [WindowKey: CGRect] = [:]
+    private var last: (key: WindowKey, action: WindowAction, step: Int)?
+    private let ownPID = ProcessInfo.processInfo.processIdentifier
+
+    private init() {}
+
+    func perform(_ action: WindowAction) {
+        guard Accessibility.shared.isTrusted else {
+            Accessibility.shared.request()
+            onMissingPermission()
+            return
+        }
+        let screens = ScreenInfo.current()
+        guard !screens.isEmpty else { return }
+        if action.group == .allWindows {
+            tile(action, screens: screens)
+        } else {
+            moveFocusedWindow(action, screens: screens)
+        }
+    }
+
+    // MARK: Ein Fenster
+
+    private func moveFocusedWindow(_ action: WindowAction, screens: [ScreenInfo]) {
+        guard let app = NSWorkspace.shared.frontmostApplication, app.processIdentifier != ownPID,
+              let window = AXWindow(focusedOf: app.processIdentifier), !window.isFullScreen,
+              let frame = window.frame else {
+            NSSound.beep()
+            return
+        }
+        let key = WindowKey(pid: window.pid, windowID: window.id ?? 0)
+        let isSnapped = snapped[key].map { Self.approximately($0, frame) } ?? false
+        let repeatStep = isSnapped && last?.key == key && last?.action == action ? last?.step : nil
+        let visible = screens.map(\.visible)
+        let target = targetScreenIndex(screens: screens, windowFrame: frame)
+
+        switch WindowPlanner.plan(action: action, window: frame, screens: visible, targetScreen: target,
+                                  gap: prefs.gap, behavior: prefs.repeatBehavior, repeatStep: repeatStep) {
+        case .restore:
+            guard let previous = original[key] else { NSSound.beep(); return }
+            window.setFrame(previous)
+            original[key] = nil
+            snapped[key] = nil
+            last = nil
+        case let .frame(rect, step, screen)?:
+            if !isSnapped { original[key] = frame }
+            snapped[key] = apply(rect, to: window, visible: visible[screen])
+            last = (key, action, step)
+        case nil:
+            NSSound.beep()
+        }
+    }
+
+    /// Setzt das Fenster und korrigiert, falls es wegen einer Mindestgröße größer geblieben ist.
+    @discardableResult
+    private func apply(_ rect: CGRect, to window: AXWindow, visible: CGRect) -> CGRect {
+        window.setFrame(rect)
+        guard let actual = window.frame else { return rect }
+        let fixed = LayoutMath.clamp(actual: actual, target: rect, visible: visible)
+        if !Self.approximately(fixed, actual) {
+            window.setPosition(fixed.origin)
+            return window.frame ?? fixed
+        }
+        return actual
+    }
+
+    // MARK: Alle Fenster eines Bildschirms
+
+    private func tile(_ action: WindowAction, screens: [ScreenInfo]) {
+        let focusedFrame = NSWorkspace.shared.frontmostApplication
+            .flatMap { AXWindow(focusedOf: $0.processIdentifier) }?.frame
+        let screen = screens[targetScreenIndex(screens: screens, windowFrame: focusedFrame)]
+        let windows = visibleWindows(on: screen)
+        guard !windows.isEmpty else { NSSound.beep(); return }
+
+        let rects: [CGRect]
+        switch action {
+        case .tileColumns: rects = LayoutMath.columns(count: windows.count, in: screen.visible, gap: prefs.gap)
+        case .focusStack: rects = LayoutMath.focusStack(count: windows.count, in: screen.visible, gap: prefs.gap)
+        default: rects = LayoutMath.grid(count: windows.count, in: screen.visible, gap: prefs.gap)
+        }
+        for (window, rect) in zip(windows, rects) {
+            guard let frame = window.frame else { continue }
+            let key = WindowKey(pid: window.pid, windowID: window.id ?? 0)
+            let isSnapped = snapped[key].map { Self.approximately($0, frame) } ?? false
+            if !isSnapped { original[key] = frame }
+            snapped[key] = apply(rect, to: window, visible: screen.visible)
+        }
+        last = nil
+    }
+
+    /// Sichtbare Standardfenster eines Bildschirms, vorderstes zuerst.
+    func visibleWindows(on screen: ScreenInfo) -> [AXWindow] {
+        let entries = Self.windowEntries(on: screen, excluding: ownPID)
+        var byApp: [pid_t: [CGWindowID: AXWindow]] = [:]
+        var result: [AXWindow] = []
+        for entry in entries {
+            if byApp[entry.pid] == nil {
+                byApp[entry.pid] = Dictionary(AXWindow.all(of: entry.pid).compactMap { w in w.id.map { ($0, w) } },
+                                              uniquingKeysWith: { first, _ in first })
+            }
+            guard let window = byApp[entry.pid]?[entry.id], window.isStandard, !window.isMinimized, !window.isFullScreen else { continue }
+            result.append(window)
+        }
+        return result
+    }
+
+    /// Kopfzeile im Panel: Name des Zielbildschirms und Zahl der sichtbaren Fenster (ohne AX, daher auch ohne Freigabe).
+    func targetScreenSummary() -> (name: String, windowCount: Int) {
+        let screens = ScreenInfo.current()
+        guard !screens.isEmpty else { return ("Kein Bildschirm", 0) }
+        let index = ScreenGeometry.screenIndex(containing: ScreenInfo.mouseLocation(), in: screens.map(\.frame))
+        return (screens[index].name, Self.windowEntries(on: screens[index], excluding: ownPID).count)
+    }
+
+    // MARK: Hilfen
+
+    private func targetScreenIndex(screens: [ScreenInfo], windowFrame: CGRect?) -> Int {
+        if prefs.targetScreen == .window, let windowFrame {
+            return ScreenGeometry.screenIndex(for: windowFrame, in: screens.map(\.frame))
+        }
+        return ScreenGeometry.screenIndex(containing: ScreenInfo.mouseLocation(), in: screens.map(\.frame))
+    }
+
+    /// Normale App-Fenster (Ebene 0) mit Mitte auf dem Bildschirm, in Z-Reihenfolge.
+    private static func windowEntries(on screen: ScreenInfo, excluding ownPID: pid_t) -> [(pid: pid_t, id: CGWindowID)] {
+        guard let list = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID)
+                as? [[String: Any]] else { return [] }
+        return list.compactMap { info in
+            guard (info[kCGWindowLayer as String] as? Int) == 0,
+                  let pid = info[kCGWindowOwnerPID as String] as? pid_t, pid != ownPID,
+                  let id = info[kCGWindowNumber as String] as? CGWindowID,
+                  let boundsDict = info[kCGWindowBounds as String] as? NSDictionary,
+                  let bounds = CGRect(dictionaryRepresentation: boundsDict),
+                  bounds.width >= 100, bounds.height >= 60,
+                  (info[kCGWindowAlpha as String] as? Double ?? 1) > 0,
+                  screen.frame.contains(CGPoint(x: bounds.midX, y: bounds.midY)) else { return nil }
+            return (pid, id)
+        }
+    }
+
+    static func approximately(_ a: CGRect, _ b: CGRect) -> Bool {
+        abs(a.minX - b.minX) <= 2 && abs(a.minY - b.minY) <= 2 && abs(a.width - b.width) <= 2 && abs(a.height - b.height) <= 2
+    }
+}
