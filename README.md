@@ -73,7 +73,11 @@ scripts/build-app.sh              # Universal-App nach dist/Raster.app + ZIP
 scripts/install.sh                # nach /Programme kopieren und starten
 ```
 
-`--snapshot <ordner> [--light|--dark] [--window-only]` erzeugt die Screenshots dieser Seite, `RASTER_DEBUG=1` schreibt ein Diagnoseprotokoll.
+`--snapshot <ordner> [--light|--dark] [--window-only]` erzeugt die Screenshots dieser Seite, `RASTER_DEBUG=1` schreibt ein Diagnoseprotokoll, `--ax-probe <pid>` prüft, ob Raster die Fenster einer bestimmten App bewegen darf.
+
+**Release bauen:** `scripts/notarize.sh` signiert mit Developer ID (Hardened Runtime), lässt Apple notarisieren und packt das ZIP (einmalig vorher `scripts/import-devid.sh`).
+
+**Warum nicht im Mac App Store?** Store-Apps müssen in der Sandbox laufen, und die Sandbox sperrt die Accessibility-Schnittstelle, mit der Raster fremde Fenster bewegt – gemessen und begründet in [docs/app-store-bewertung.md](docs/app-store-bewertung.md).
 
 **Tipp für Selbstbauer:** Mit einer ad-hoc-Signatur verfällt die Bedienungshilfen-Freigabe bei jedem Neubau. `scripts/build-app.sh` nutzt deshalb eine lokale Signatur-Identität „Raster Local Signing“ aus `~/Library/Keychains/raster-signing.keychain-db`, falls vorhanden – dann bleibt die Freigabe über Updates hinweg gültig.
 
