@@ -54,6 +54,10 @@ final class Preferences {
             syncLoginItem()
         }
     }
+    /// Der User hat die Frage nach dem Autostart beantwortet (nur Store-Version).
+    var loginConsentAnswered: Bool {
+        didSet { defaults.set(loginConsentAnswered, forKey: "loginConsentAnswered") }
+    }
     /// macOS hat den Autostart registriert, wartet aber auf Genehmigung in den Systemeinstellungen.
     private(set) var loginItemNeedsApproval = false
     @ObservationIgnored private var isSyncingLoginItem = false
@@ -69,10 +73,16 @@ final class Preferences {
         repeatBehavior = RepeatBehavior(rawValue: defaults.string(forKey: "repeatBehavior") ?? "") ?? .cycleWidth
         gap = defaults.double(forKey: "gap")
         shortcuts = Self.loadShortcuts(from: defaults)
+        loginConsentAnswered = defaults.bool(forKey: "loginConsentAnswered")
         let status = SMAppService.mainApp.status
         launchAtLogin = Self.isLoginItemOn(status)
         loginItemNeedsApproval = status == .requiresApproval
     }
+
+    /// App-Store-Richtlinie 2.4.5 (iii): Autostart erst nach ausdrücklicher Zustimmung.
+    static func needsLoginConsent(isAppStore: Bool, answered: Bool) -> Bool { isAppStore && !answered }
+
+    var needsLoginConsent: Bool { Self.needsLoginConsent(isAppStore: Flavor.isAppStore, answered: loginConsentAnswered) }
 
     /// „Genehmigung erforderlich“ zählt als an – sonst würde der gerade angelegte Eintrag sofort wieder abgemeldet.
     static func isLoginItemOn(_ status: SMAppService.Status) -> Bool {

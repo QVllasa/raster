@@ -41,6 +41,7 @@ enum SelfTest {
             ("testRestoreOntoMissingScreen", testRestoreOntoMissingScreen),
             ("testFocusedWindowComesFirst", testFocusedWindowComesFirst),
             ("testMatchByFrame", testMatchByFrame),
+            ("testLoginConsent", testLoginConsent),
         ]
         for (name, test) in tests {
             let before = failures
@@ -436,5 +437,17 @@ enum SelfTest {
         let twins: [(pid: pid_t, bounds: CGRect)] = [(10, a), (10, a)]
         check(WindowManager.match(entries: twins, windows: [(10, a), (10, a)]) == [0, 1],
               "zwei gleich große Fenster einer App werden verschiedenen AX-Fenstern zugeordnet")
+    }
+
+    static func testLoginConsent() {
+        check(Preferences.needsLoginConsent(isAppStore: true, answered: false), "Store-Version fragt vor dem Autostart")
+        check(!Preferences.needsLoginConsent(isAppStore: true, answered: true), "nach der Antwort nicht erneut fragen")
+        check(!Preferences.needsLoginConsent(isAppStore: false, answered: false), "GitHub-Version startet wie gewünscht automatisch")
+        withTestDefaults { defaults in
+            let prefs = Preferences(defaults: defaults)
+            check(!prefs.loginConsentAnswered, "anfangs unbeantwortet")
+            prefs.loginConsentAnswered = true
+            check(Preferences(defaults: defaults).loginConsentAnswered, "Antwort wird gespeichert")
+        }
     }
 }

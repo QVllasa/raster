@@ -11,6 +11,9 @@ struct LayoutsView: View {
             if !accessibility.isTrusted {
                 PermissionCard()
             }
+            if prefs.needsLoginConsent {
+                LoginConsentCard()
+            }
             SectionCard(title: "Hälften & Vollbild") {
                 TileRow(actions: ActionGroup.halves.actions)
                 TileRow(actions: ActionGroup.screen.actions)
@@ -84,6 +87,43 @@ struct LayoutTile: View {
         .onHover { over in withAnimation(.snappy(duration: 0.18)) { hovering = over } }
         .help(shortcut.map { "\(action.title) – \($0)" } ?? action.title)
         .accessibilityLabel(action.title)
+    }
+}
+
+/// Store-Version: fragt einmal, ob Raster mit dem Mac starten soll.
+struct LoginConsentCard: View {
+    @Environment(Preferences.self) private var prefs
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: "power.circle.fill")
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundStyle(Palette.accent)
+                .frame(width: 22)
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Mit dem Mac starten?").font(.callout.weight(.semibold))
+                Text("Dann stehen die Tastenkürzel nach jedem Neustart sofort bereit. Du kannst das jederzeit in den Einstellungen ändern.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                HStack(spacing: 8) {
+                    Button("Ja, automatisch starten") { answer(true) }
+                        .buttonStyle(.glassProminent)
+                        .controlSize(.small)
+                    Button("Nein") { answer(false) }
+                        .buttonStyle(.glass)
+                        .controlSize(.small)
+                }
+            }
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .card()
+    }
+
+    private func answer(_ start: Bool) {
+        prefs.loginConsentAnswered = true
+        prefs.launchAtLogin = start
     }
 }
 

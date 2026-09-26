@@ -29,14 +29,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    /// Beim allerersten Start: als Anmeldeobjekt eintragen (startet mit dem Mac) und um die Freigabe bitten.
+    /// Beim allerersten Start: Autostart einrichten (GitHub-Version automatisch, Store-Version fragt im Panel)
+    /// und um die Freigabe bitten.
     private func firstRun() {
         let key = "firstRunDone"
         guard Bundle.main.bundleURL.pathExtension == "app", !UserDefaults.standard.bool(forKey: key) else { return }
         UserDefaults.standard.set(true, forKey: key)
-        prefs.launchAtLogin = true
-        if !Accessibility.shared.isTrusted {
-            Accessibility.shared.request()
+        if !Flavor.isAppStore { prefs.launchAtLogin = true }
+        if !Accessibility.shared.isTrusted { Accessibility.shared.request() }
+        if !Accessibility.shared.isTrusted || prefs.needsLoginConsent {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { self.controller.openPanel() }
         }
     }
