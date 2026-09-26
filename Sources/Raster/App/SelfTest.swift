@@ -40,6 +40,7 @@ enum SelfTest {
             ("testCorrectionSkipsStaleReadback", testCorrectionSkipsStaleReadback),
             ("testRestoreOntoMissingScreen", testRestoreOntoMissingScreen),
             ("testFocusedWindowComesFirst", testFocusedWindowComesFirst),
+            ("testMatchByFrame", testMatchByFrame),
         ]
         for (name, test) in tests {
             let before = failures
@@ -424,5 +425,16 @@ enum SelfTest {
         check(WindowManager.focusFirst([7, 3, 9], focused: 7) == [7, 3, 9], "schon vorn → unverändert")
         check(WindowManager.focusFirst([7, 3, 9], focused: 42) == [7, 3, 9], "Fokus auf anderem Bildschirm → unverändert")
         check(WindowManager.focusFirst([7, 3, 9], focused: Int?.none) == [7, 3, 9], "kein Fokus → unverändert")
+    }
+
+    static func testMatchByFrame() {
+        let a = CGRect(x: 0, y: 25, width: 756, height: 920), b = CGRect(x: 756, y: 25, width: 756, height: 920)
+        let entries: [(pid: pid_t, bounds: CGRect)] = [(10, b), (10, a), (20, a), (30, a)]
+        let windows: [(pid: pid_t, frame: CGRect)] = [(10, a), (10, CGRect(x: 757, y: 25, width: 755, height: 920)), (20, a)]
+        check(WindowManager.match(entries: entries, windows: windows) == [1, 0, 2, nil],
+              "Zuordnung über App + Rahmen (±2 pt), fremde App/fehlendes Fenster → nil")
+        let twins: [(pid: pid_t, bounds: CGRect)] = [(10, a), (10, a)]
+        check(WindowManager.match(entries: twins, windows: [(10, a), (10, a)]) == [0, 1],
+              "zwei gleich große Fenster einer App werden verschiedenen AX-Fenstern zugeordnet")
     }
 }

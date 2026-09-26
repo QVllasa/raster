@@ -1,10 +1,6 @@
 import AppKit
 import ApplicationServices
 
-/// Private, aber seit Jahren stabile Funktion: liefert die CGWindowID zu einem AX-Fenster.
-@_silgen_name("_AXUIElementGetWindow")
-private func _AXUIElementGetWindow(_ element: AXUIElement, _ id: UnsafeMutablePointer<CGWindowID>) -> AXError
-
 /// Dünner Wrapper um ein Fenster einer anderen App (Accessibility-API, AX-Koordinaten).
 struct AXWindow {
     let element: AXUIElement
@@ -29,10 +25,8 @@ struct AXWindow {
         return list.map { AXWindow(element: $0, pid: pid) }
     }
 
-    var id: CGWindowID? {
-        var id: CGWindowID = 0
-        return _AXUIElementGetWindow(element, &id) == .success && id != 0 ? id : nil
-    }
+    /// Identität über öffentliche API: Zwei AX-Elemente desselben Fensters sind laut CFEqual gleich.
+    var key: WindowKey { WindowKey(element: element) }
 
     var frame: CGRect? {
         guard let position = Self.copy(element, kAXPositionAttribute), let size = Self.copy(element, kAXSizeAttribute) else { return nil }

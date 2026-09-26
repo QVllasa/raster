@@ -1,9 +1,11 @@
 import AppKit
 
-/// Eindeutiger Schlüssel eines Fensters über App-Grenzen hinweg.
+/// Eindeutiger Schlüssel eines Fensters über App-Grenzen hinweg – nur öffentliche API (CFEqual/CFHash).
 struct WindowKey: Hashable {
-    let pid: pid_t
-    let windowID: CGWindowID
+    let element: AXUIElement
+
+    static func == (lhs: WindowKey, rhs: WindowKey) -> Bool { CFEqual(lhs.element, rhs.element) }
+    func hash(into hasher: inout Hasher) { hasher.combine(CFHash(element)) }
 }
 
 /// Führt Aktionen an echten Fenstern aus: Zielbildschirm bestimmen, planen, per Accessibility setzen.
@@ -50,7 +52,7 @@ final class WindowManager {
             NSSound.beep()
             return
         }
-        let key = WindowKey(pid: window.pid, windowID: window.id ?? 0)
+        let key = window.key
         let isSnapped = snapped[key].map { Self.approximately($0, frame) } ?? false
         let repeatStep = isSnapped && last?.key == key && last?.action == action ? last?.step : nil
         let visible = screens.map(\.visible)
@@ -100,7 +102,7 @@ final class WindowManager {
         let screen = screens[targetScreenIndex(screens: screens, windowFrame: focused?.frame)]
         let found = visibleWindows(on: screen)
         // Das fokussierte Fenster kommt zuerst (oben links bzw. „Fokus“ links), der Rest in Z-Reihenfolge.
-        let order = Self.focusFirst(found.indices.map { $0 }, focused: found.firstIndex { $0.id != nil && $0.id == focused?.id })
+        let order = Self.focusFirst(found.indices.map { $0 }, focused: found.firstIndex { $0.key == focused?.key })
         let windows = order.map { found[$0] }
         guard !windows.isEmpty else { NSSound.beep(); return }
 
@@ -112,7 +114,7 @@ final class WindowManager {
         }
         for (window, rect) in zip(windows, rects) {
             guard let frame = window.frame else { continue }
-            let key = WindowKey(pid: window.pid, windowID: window.id ?? 0)
+            let key = window.key
             let isSnapped = snapped[key].map { Self.approximately($0, frame) } ?? false
             if !isSnapped { original[key] = frame }
             snapped[key] = apply(rect, to: window, visible: screen.visible)
@@ -123,17 +125,30 @@ final class WindowManager {
     /// Sichtbare Standardfenster eines Bildschirms, vorderstes zuerst.
     func visibleWindows(on screen: ScreenInfo) -> [AXWindow] {
         let entries = Self.windowEntries(on: screen, excluding: ownPID)
-        var byApp: [pid_t: [CGWindowID: AXWindow]] = [:]
-        var result: [AXWindow] = []
-        for entry in entries {
-            if byApp[entry.pid] == nil {
-                byApp[entry.pid] = Dictionary(AXWindow.all(of: entry.pid).compactMap { w in w.id.map { ($0, w) } },
-                                              uniquingKeysWith: { first, _ in first })
-            }
-            guard let window = byApp[entry.pid]?[entry.id], window.isStandard, !window.isMinimized, !window.isFullScreen else { continue }
-            result.append(window)
+        var byApp: [pid_t: [AXWindow]] = [:]
+        for pid in Set(entries.map(\.pid)) { byApp[pid] = AXWindow.all(of: pid) }
+        let candidates = byApp.values.flatMap { $0 }
+            .compactMap { window in window.frame.map { (window: window, frame: $0) } }
+        let matches = Self.match(entries: entries.map { ($0.pid, $0.bounds) },
+                                 windows: candidates.map { ($0.window.pid, $0.frame) })
+        return matches.compactMap { index -> AXWindow? in
+            guard let index else { return nil }
+            let window = candidates[index].window
+            return window.isStandard && !window.isMinimized && !window.isFullScreen ? window : nil
         }
-        return result
+    }
+
+    /// Ordnet jedem Eintrag der Fensterliste das AX-Fenster derselben App mit gleichem Rahmen (±2 pt) zu;
+    /// jedes AX-Fenster höchstens einmal. nil = kein passendes Fenster.
+    nonisolated static func match(entries: [(pid: pid_t, bounds: CGRect)], windows: [(pid: pid_t, frame: CGRect)]) -> [Int?] {
+        var used = Set<Int>()
+        return entries.map { entry in
+            let hit = windows.indices.first { i in
+                !used.contains(i) && windows[i].pid == entry.pid && windows[i].frame.isClose(to: entry.bounds)
+            }
+            if let hit { used.insert(hit) }
+            return hit
+        }
     }
 
     /// Kopfzeile im Panel: Name des Zielbildschirms und Zahl der sichtbaren Fenster (ohne AX, daher auch ohne Freigabe).
@@ -154,19 +169,18 @@ final class WindowManager {
     }
 
     /// Normale App-Fenster (Ebene 0) mit Mitte auf dem Bildschirm, in Z-Reihenfolge.
-    private static func windowEntries(on screen: ScreenInfo, excluding ownPID: pid_t) -> [(pid: pid_t, id: CGWindowID)] {
+    private static func windowEntries(on screen: ScreenInfo, excluding ownPID: pid_t) -> [(pid: pid_t, bounds: CGRect)] {
         guard let list = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID)
                 as? [[String: Any]] else { return [] }
         return list.compactMap { info in
             guard (info[kCGWindowLayer as String] as? Int) == 0,
                   let pid = info[kCGWindowOwnerPID as String] as? pid_t, pid != ownPID,
-                  let id = info[kCGWindowNumber as String] as? CGWindowID,
                   let boundsDict = info[kCGWindowBounds as String] as? NSDictionary,
                   let bounds = CGRect(dictionaryRepresentation: boundsDict),
                   bounds.width >= 100, bounds.height >= 60,
                   (info[kCGWindowAlpha as String] as? Double ?? 1) > 0,
                   screen.frame.contains(CGPoint(x: bounds.midX, y: bounds.midY)) else { return nil }
-            return (pid, id)
+            return (pid, bounds)
         }
     }
 

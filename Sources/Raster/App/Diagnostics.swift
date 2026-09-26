@@ -6,6 +6,12 @@ import ApplicationServices
 enum Diagnostics {
     static func axProbe(pid: pid_t) -> Int32 {
         print("Freigabe (AXIsProcessTrusted):", AXIsProcessTrusted())
+        MainActor.assumeIsolated {
+            for screen in ScreenInfo.current() {
+                let windows = WindowManager.shared.visibleWindows(on: screen)
+                print("Bildschirm \(screen.name): \(windows.count) Fenster zugeordnet (\(Set(windows.map(\.pid)).count) Apps)")
+            }
+        }
         var value: CFTypeRef?
         let error = AXUIElementCopyAttributeValue(AXUIElementCreateApplication(pid), kAXWindowsAttribute as CFString, &value)
         print("AXWindows-Abfrage:", error.rawValue, error == .success ? "(ok)" : error == .cannotComplete ? "(cannotComplete – Verbindung blockiert)" : error == .apiDisabled ? "(apiDisabled – keine Freigabe)" : "")
