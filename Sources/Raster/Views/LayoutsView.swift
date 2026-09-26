@@ -22,18 +22,18 @@ struct LayoutsView: View {
                 TileRow(actions: ActionGroup.quarters.actions)
                 TileRow(actions: ActionGroup.thirds.actions, compact: true)
             }
-            SectionCard(title: "Alle Fenster", trailing: state.windowCount == 1 ? "1 Fenster" : "\(state.windowCount) Fenster") {
+            SectionCard(title: "Alle Fenster", trailing: state.windowCount == 1 ? String(localized: "1 Fenster") : String(localized: "\(state.windowCount) Fenster")) {
                 TileRow(actions: ActionGroup.allWindows.actions)
             }
             if state.screenCount > 1 {
-                SectionCard(title: "Bildschirme", trailing: "\(state.screenCount) angeschlossen") {
+                SectionCard(title: "Bildschirme", trailing: String(localized: "\(state.screenCount) angeschlossen")) {
                     TileRow(actions: ActionGroup.displays.actions)
                 }
             }
             HStack(spacing: 6) {
                 Image(systemName: prefs.targetScreen == .mouse ? "cursorarrow" : "macwindow")
-                Text(prefs.targetScreen == .mouse ? "Ziel ist der Bildschirm unter dem Mauszeiger"
-                                                  : "Ziel ist der Bildschirm des aktiven Fensters")
+                Text(prefs.targetScreen == .mouse ? String(localized: "Ziel ist der Bildschirm unter dem Mauszeiger")
+                                                  : String(localized: "Ziel ist der Bildschirm des aktiven Fensters"))
             }
             .font(.caption2)
             .foregroundStyle(.secondary)

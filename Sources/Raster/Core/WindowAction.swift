@@ -7,12 +7,12 @@ enum ActionGroup: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .halves: "Hälften"
-        case .screen: "Ganzer Bildschirm"
-        case .quarters: "Viertel"
-        case .thirds: "Drittel"
-        case .allWindows: "Alle Fenster auf dem Bildschirm"
-        case .displays: "Bildschirme"
+        case .halves: String(localized: "Hälften")
+        case .screen: String(localized: "Ganzer Bildschirm")
+        case .quarters: String(localized: "Viertel")
+        case .thirds: String(localized: "Drittel")
+        case .allWindows: String(localized: "Alle Fenster auf dem Bildschirm")
+        case .displays: String(localized: "Bildschirme")
         }
     }
 
@@ -32,47 +32,47 @@ enum WindowAction: String, CaseIterable, Codable, Identifiable {
 
     var title: String {
         switch self {
-        case .leftHalf: "Linke Hälfte"
-        case .rightHalf: "Rechte Hälfte"
-        case .topHalf: "Obere Hälfte"
-        case .bottomHalf: "Untere Hälfte"
-        case .maximize: "Maximieren"
-        case .almostMaximize: "Fast maximieren"
-        case .center: "Zentrieren"
-        case .restore: "Wiederherstellen"
-        case .topLeft: "Oben links"
-        case .topRight: "Oben rechts"
-        case .bottomLeft: "Unten links"
-        case .bottomRight: "Unten rechts"
-        case .leftThird: "Linkes Drittel"
-        case .centerThird: "Mittleres Drittel"
-        case .rightThird: "Rechtes Drittel"
-        case .leftTwoThirds: "Linke zwei Drittel"
-        case .rightTwoThirds: "Rechte zwei Drittel"
-        case .nextDisplay: "Nächster Bildschirm"
-        case .previousDisplay: "Vorheriger Bildschirm"
-        case .tileGrid: "Raster"
-        case .tileColumns: "Nebeneinander"
-        case .focusStack: "Fokus + Stapel"
+        case .leftHalf: String(localized: "Linke Hälfte")
+        case .rightHalf: String(localized: "Rechte Hälfte")
+        case .topHalf: String(localized: "Obere Hälfte")
+        case .bottomHalf: String(localized: "Untere Hälfte")
+        case .maximize: String(localized: "Maximieren")
+        case .almostMaximize: String(localized: "Fast maximieren")
+        case .center: String(localized: "Zentrieren")
+        case .restore: String(localized: "Wiederherstellen")
+        case .topLeft: String(localized: "Oben links")
+        case .topRight: String(localized: "Oben rechts")
+        case .bottomLeft: String(localized: "Unten links")
+        case .bottomRight: String(localized: "Unten rechts")
+        case .leftThird: String(localized: "Linkes Drittel")
+        case .centerThird: String(localized: "Mittleres Drittel")
+        case .rightThird: String(localized: "Rechtes Drittel")
+        case .leftTwoThirds: String(localized: "Linke zwei Drittel")
+        case .rightTwoThirds: String(localized: "Rechte zwei Drittel")
+        case .nextDisplay: String(localized: "Nächster Bildschirm")
+        case .previousDisplay: String(localized: "Vorheriger Bildschirm")
+        case .tileGrid: String(localized: "Raster")
+        case .tileColumns: String(localized: "Nebeneinander")
+        case .focusStack: String(localized: "Fokus + Stapel")
         }
     }
 
     /// Kurzer Titel für die Kacheln im Panel.
     var shortTitle: String {
         switch self {
-        case .leftHalf: "Links"
-        case .rightHalf: "Rechts"
-        case .topHalf: "Oben"
-        case .bottomHalf: "Unten"
-        case .almostMaximize: "Fast voll"
-        case .restore: "Zurück"
-        case .leftThird: "Links"
-        case .centerThird: "Mitte"
-        case .rightThird: "Rechts"
-        case .leftTwoThirds: "⅔ links"
-        case .rightTwoThirds: "⅔ rechts"
-        case .nextDisplay: "Nächster"
-        case .previousDisplay: "Vorheriger"
+        case .leftHalf: String(localized: "Links")
+        case .rightHalf: String(localized: "Rechts")
+        case .topHalf: String(localized: "Oben")
+        case .bottomHalf: String(localized: "Unten")
+        case .almostMaximize: String(localized: "Fast voll")
+        case .restore: String(localized: "Zurücksetzen")
+        case .leftThird: String(localized: "Links")
+        case .centerThird: String(localized: "Mitte")
+        case .rightThird: String(localized: "Rechts")
+        case .leftTwoThirds: String(localized: "⅔ links")
+        case .rightTwoThirds: String(localized: "⅔ rechts")
+        case .nextDisplay: String(localized: "Nächster")
+        case .previousDisplay: String(localized: "Vorheriger")
         default: title
         }
     }

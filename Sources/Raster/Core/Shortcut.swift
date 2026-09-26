@@ -50,7 +50,7 @@ struct Shortcut: Codable, Hashable {
     // MARK: Tastennamen
 
     private static let specialKeys: [UInt32: String] = [
-        123: "←", 124: "→", 125: "↓", 126: "↑", 36: "↩", 76: "⌤", 51: "⌫", 117: "⌦", 48: "⇥", 49: "Leertaste",
+        123: "←", 124: "→", 125: "↓", 126: "↑", 36: "↩", 76: "⌤", 51: "⌫", 117: "⌦", 48: "⇥", 49: String(localized: "Leertaste"),
         53: "⎋", 115: "↖", 119: "↘", 116: "⇞", 121: "⇟",
     ]
 

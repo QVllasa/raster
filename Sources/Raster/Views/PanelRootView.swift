@@ -111,7 +111,7 @@ struct PanelHeader: View {
             case .overview:
                 AppGlyph()
                 VStack(alignment: .leading, spacing: 1) {
-                    Text("Raster").font(.headline)
+                    Text(verbatim: "Raster").font(.headline)
                     Text(subtitle)
                         .font(.caption)
                         .foregroundStyle(.secondary)
@@ -132,8 +132,8 @@ struct PanelHeader: View {
     }
 
     private var subtitle: String {
-        if hotKeys.isPaused { return "Tastenkürzel pausiert" }
-        let windows = state.windowCount == 1 ? "1 Fenster" : "\(state.windowCount) Fenster"
+        if hotKeys.isPaused { return String(localized: "Tastenkürzel pausiert") }
+        let windows = state.windowCount == 1 ? String(localized: "1 Fenster") : String(localized: "\(state.windowCount) Fenster")
         return state.screenName.isEmpty ? windows : "\(state.screenName) · \(windows)"
     }
 }

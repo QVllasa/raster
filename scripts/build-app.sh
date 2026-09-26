@@ -28,7 +28,9 @@ lipo -create -output "$APP/Contents/MacOS/Raster" \
     .build/x86_64-apple-macosx/release/Raster
 strip -x "$APP/Contents/MacOS/Raster"
 sed -e "s/__VERSION__/$VERSION/" -e "s/__BUILD__/$BUILD/" Resources/Info.plist > "$APP/Contents/Info.plist"
+python3 scripts/gen-strings.py
 cp Resources/AppIcon.icns "$APP/Contents/Resources/"
+cp -R Resources/en.lproj Resources/de.lproj "$APP/Contents/Resources/"
 printf 'APPL????' > "$APP/Contents/PkgInfo"
 
 if [[ -f "$KEYCHAIN" ]] && security unlock-keychain -p raster "$KEYCHAIN" 2>/dev/null \

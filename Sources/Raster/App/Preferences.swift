@@ -7,7 +7,7 @@ enum TargetScreenMode: String, CaseIterable, Identifiable {
     case mouse, window
 
     var id: String { rawValue }
-    var title: String { self == .mouse ? "Maus" : "Aktives Fenster" }
+    var title: String { self == .mouse ? String(localized: "Maus") : String(localized: "Aktives Fenster") }
 }
 
 /// Was passiert, wenn dieselbe Hälfte noch einmal gedrückt wird.
@@ -18,9 +18,9 @@ enum RepeatBehavior: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .none: "Nichts"
-        case .cycleWidth: "Breite wechseln (½ → ⅔ → ⅓)"
-        case .moveToNeighbor: "Zum Nachbarbildschirm"
+        case .none: String(localized: "Nichts")
+        case .cycleWidth: String(localized: "Breite wechseln (½ → ⅔ → ⅓)")
+        case .moveToNeighbor: String(localized: "Zum Nachbarbildschirm")
         }
     }
 }

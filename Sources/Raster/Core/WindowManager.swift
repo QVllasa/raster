@@ -154,7 +154,7 @@ final class WindowManager {
     /// Kopfzeile im Panel: Name des Zielbildschirms und Zahl der sichtbaren Fenster (ohne AX, daher auch ohne Freigabe).
     func targetScreenSummary() -> (name: String, windowCount: Int) {
         let screens = ScreenInfo.current()
-        guard !screens.isEmpty else { return ("Kein Bildschirm", 0) }
+        guard !screens.isEmpty else { return (String(localized: "Kein Bildschirm"), 0) }
         let index = ScreenGeometry.screenIndex(containing: ScreenInfo.mouseLocation(), in: screens.map(\.frame))
         return (screens[index].name, Self.windowEntries(on: screens[index], excluding: ownPID).count)
     }

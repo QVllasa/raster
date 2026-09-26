@@ -38,7 +38,7 @@ extension View {
 }
 
 struct SectionCard<Content: View>: View {
-    var title: String?
+    var title: LocalizedStringKey?
     var trailing: String?
     @ViewBuilder var content: Content
 
@@ -68,7 +68,7 @@ struct SectionCard<Content: View>: View {
 
 struct GlassIconButton: View {
     var symbol: String
-    var help: String
+    var help: LocalizedStringKey
     var action: () -> Void
 
     var body: some View {
@@ -143,7 +143,7 @@ struct ScreenPreview: View {
 }
 
 struct SwitchRow: View {
-    var title: String
+    var title: LocalizedStringKey
     @Binding var isOn: Bool
 
     var body: some View {

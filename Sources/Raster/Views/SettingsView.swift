@@ -53,7 +53,7 @@ struct SettingsView: View {
             }
             .font(.callout)
 
-            SectionCard(title: "Tastenkürzel", trailing: "Klicken zum Ändern") {
+            SectionCard(title: "Tastenkürzel", trailing: String(localized: "Klicken zum Ändern")) {
                 ForEach(ActionGroup.allCases) { group in
                     VStack(alignment: .leading, spacing: 6) {
                         Text(group.title)
@@ -79,7 +79,7 @@ struct SettingsView: View {
                     Circle()
                         .fill(accessibility.isTrusted ? Color.green.gradient : Color.orange.gradient)
                         .frame(width: 8, height: 8)
-                    Text(accessibility.isTrusted ? "Freigegeben – Raster darf Fenster bewegen" : "Nicht freigegeben")
+                    Text(accessibility.isTrusted ? String(localized: "Freigegeben – Raster darf Fenster bewegen") : String(localized: "Nicht freigegeben"))
                         .font(.callout)
                     Spacer()
                     if !accessibility.isTrusted {
@@ -96,7 +96,7 @@ struct SettingsView: View {
 
             HStack {
                 VStack(alignment: .leading, spacing: 1) {
-                    Text("Raster \(Bundle.main.shortVersion)").font(.callout.weight(.semibold))
+                    Text(verbatim: "Raster \(Bundle.main.shortVersion)").font(.callout.weight(.semibold))
                     Text("Rechtsklick auf das Menüleisten-Symbol öffnet das Menü")
                         .font(.caption2).foregroundStyle(.secondary)
                 }
@@ -140,7 +140,7 @@ struct ShortcutRow: View {
                     }
                 }
             } label: {
-                Text(recording ? "Tasten drücken …" : (prefs.shortcuts[action]?.displayString ?? "Kein Kürzel"))
+                Text(recording ? String(localized: "Tasten drücken …") : (prefs.shortcuts[action]?.displayString ?? String(localized: "Kein Kürzel")))
                     .font(.system(size: 11.5, weight: .semibold, design: .rounded))
                     .foregroundStyle(recording ? AnyShapeStyle(Palette.accentTop) :
                                         prefs.shortcuts[action] == nil ? AnyShapeStyle(.tertiary) : AnyShapeStyle(.primary))
@@ -154,7 +154,7 @@ struct ShortcutRow: View {
                 }
             }
             .modifier(ShakeEffect(shakes: CGFloat(shake)))
-            .help(recording ? "Neue Tastenkombination drücken – ⎋ bricht ab, ⌫ löscht" : "Klicken, um das Kürzel zu ändern")
+            .help(recording ? String(localized: "Neue Tastenkombination drücken – ⎋ bricht ab, ⌫ löscht") : String(localized: "Klicken, um das Kürzel zu ändern"))
         }
     }
 }

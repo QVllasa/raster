@@ -20,8 +20,8 @@ final class StatusItemController: NSObject, NSMenuDelegate {
             button.target = self
             button.action = #selector(buttonClicked(_:))
             button.sendAction(on: [.leftMouseUp, .rightMouseUp])
-            button.setAccessibilityLabel("Raster Fensteranordnung")
-            button.toolTip = "Raster – Fenster anordnen"
+            button.setAccessibilityLabel(String(localized: "Raster Fensteranordnung"))
+            button.toolTip = String(localized: "Raster – Fenster anordnen")
         }
         state.close = { [weak self] in self?.closePanel() }
         state.perform = { [weak self] action in
@@ -117,13 +117,13 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         closePanel()
         let menu = NSMenu()
         menu.delegate = self
-        menu.addItem(item("Raster öffnen", #selector(menuOpen)))
-        menu.addItem(item("Einstellungen …", #selector(menuSettings), key: ","))
-        let pause = item("Tastenkürzel pausieren", #selector(menuTogglePause))
+        menu.addItem(item(String(localized: "Raster öffnen"), #selector(menuOpen)))
+        menu.addItem(item(String(localized: "Einstellungen …"), #selector(menuSettings), key: ","))
+        let pause = item(String(localized: "Tastenkürzel pausieren"), #selector(menuTogglePause))
         pause.state = HotKeyCenter.shared.isPaused ? .on : .off
         menu.addItem(pause)
         menu.addItem(.separator())
-        menu.addItem(item("Raster beenden", #selector(menuQuit), key: "q"))
+        menu.addItem(item(String(localized: "Raster beenden"), #selector(menuQuit), key: "q"))
         statusItem.menu = menu
         statusItem.button?.performClick(nil)
     }
