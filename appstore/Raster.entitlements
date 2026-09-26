@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>com.apple.application-identifier</key>
+    <string>QU9LB387VU.com.vllasa.raster</string>
+    <key>com.apple.developer.team-identifier</key>
+    <string>QU9LB387VU</string>
+    <key>com.apple.security.app-sandbox</key>
+    <true/>
+    <!-- Ohne diese Ausnahme verweigert die Sandbox den Zugriff auf den Accessibility-Server
+         anderer Apps (kAXErrorCannotComplete), obwohl der Nutzer die Freigabe erteilt hat. -->
+    <key>com.apple.security.temporary-exception.mach-lookup.local-name</key>
+    <array>
+        <string>com.apple.axserver</string>
+    </array>
+</dict>
+</plist>

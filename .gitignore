@@ -3,3 +3,6 @@
 .DS_Store
 dist/
 .superpowers/
+__pycache__/
+.build-store/
+dist-store/
