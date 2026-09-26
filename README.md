@@ -11,7 +11,8 @@
 
 <p align="center">
   <a href="https://github.com/QVllasa/raster/releases/latest"><b>⬇︎ Raster herunterladen</b></a> ·
-  macOS 26 Tahoe · Apple Silicon &amp; Intel · kostenlos &amp; Open Source (MIT)
+  macOS 26 Tahoe · Apple Silicon &amp; Intel · Deutsch &amp; Englisch · kostenlos &amp; Open Source (MIT)<br>
+  Bald auch im Mac App Store · <a href="https://qvllasa.github.io/raster/">Website</a>
 </p>
 
 <p align="center">
@@ -59,7 +60,7 @@ Voraussetzung ist **macOS 26 (Tahoe)** oder neuer, weil Raster das neue Liquid-G
 
 ## Datenschutz
 
-Raster sammelt nichts, sendet nichts und stellt keine einzige Netzwerkverbindung her. Die Freigabe „Bedienungshilfen“ wird ausschließlich genutzt, um Position und Größe von Fenstern zu lesen und zu setzen. Der gesamte Quelltext liegt hier – rund 2 400 Zeilen Swift, ohne Fremdbibliotheken.
+Raster sammelt nichts, sendet nichts und stellt keine einzige Netzwerkverbindung her. Die Freigabe „Bedienungshilfen“ wird ausschließlich genutzt, um Position und Größe von Fenstern zu lesen und zu setzen. Der gesamte Quelltext liegt hier – rund 2 600 Zeilen Swift, ohne Fremdbibliotheken.
 
 ## Selbst bauen
 
@@ -77,7 +78,7 @@ scripts/install.sh                # nach /Programme kopieren und starten
 
 **Release bauen:** `scripts/notarize.sh` signiert mit Developer ID (Hardened Runtime), lässt Apple notarisieren und packt das ZIP (einmalig vorher `scripts/import-devid.sh`).
 
-**Warum nicht im Mac App Store?** Store-Apps müssen in der Sandbox laufen, und die Sandbox sperrt die Accessibility-Schnittstelle, mit der Raster fremde Fenster bewegt – gemessen und begründet in [docs/app-store-bewertung.md](docs/app-store-bewertung.md).
+**Mac App Store:** `scripts/build-appstore.sh` baut die Store-Version (Sandbox mit genau einer Ausnahme für den Accessibility-Server, ohne private Schnittstellen), `scripts/asc_submit.py` erledigt Texte, Screenshots und Einreichung über die App-Store-Connect-API. Warum die Sandbox eine Ausnahme braucht, steht mit Messwerten in [docs/app-store-bewertung.md](docs/app-store-bewertung.md).
 
 **Tipp für Selbstbauer:** Mit einer ad-hoc-Signatur verfällt die Bedienungshilfen-Freigabe bei jedem Neubau. `scripts/build-app.sh` nutzt deshalb eine lokale Signatur-Identität „Raster Local Signing“ aus `~/Library/Keychains/raster-signing.keychain-db`, falls vorhanden – dann bleibt die Freigabe über Updates hinweg gültig.
 
@@ -97,7 +98,7 @@ scripts/install.sh                # nach /Programme kopieren und starten
 <details>
 <summary><b>English</b></summary>
 
-**Raster** is a lightweight window manager for the macOS menu bar with a Liquid Glass design (macOS 26+). ⌘← / ⌘→ snap the focused window to the left/right half, ⌘↑ maximizes (press again to restore). Press a half again to cycle ½ → ⅔ → ⅓, or optionally move to the neighboring display. Quarters, thirds, two-thirds, almost-maximize, center, restore, move to next/previous display, and tiling *all* windows of a display (grid, columns, focus + stack) are included. With multiple displays, the display under the mouse pointer is used (or, optionally, the focused window's display). All shortcuts are customizable. The UI is currently German.
+**Raster** is a lightweight window manager for the macOS menu bar with a Liquid Glass design (macOS 26+). ⌘← / ⌘→ snap the focused window to the left/right half, ⌘↑ maximizes (press again to restore). Press a half again to cycle ½ → ⅔ → ⅓, or optionally move to the neighboring display. Quarters, thirds, two-thirds, almost-maximize, center, restore, move to next/previous display, and tiling *all* windows of a display (grid, columns, focus + stack) are included. With multiple displays, the display under the mouse pointer is used (or, optionally, the focused window's display). All shortcuts are customizable. The UI is available in English and German.
 
 **Install:** download the ZIP from the [latest release](https://github.com/QVllasa/raster/releases/latest), move `Raster.app` to Applications. The app is not notarized, so allow it once via *System Settings → Privacy & Security → Open Anyway*, or run `xattr -dr com.apple.quarantine /Applications/Raster.app`. Then grant *Accessibility* permission when asked.
 
