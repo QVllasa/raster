@@ -27,7 +27,7 @@ final class WindowManager {
     private init() {}
 
     func perform(_ action: WindowAction) {
-        debugLog("Aktion \(action.rawValue), Freigabe \(Accessibility.shared.isTrusted), vorne \(NSWorkspace.shared.frontmostApplication?.localizedName ?? "-")")
+        debugLog("Aktion \(action.rawValue), Freigabe \(Accessibility.shared.isTrusted), vorne \(NSWorkspace.shared.frontmostApplication?.localizedName ?? "-") (PID \(Self.frontmostPID().map(String.init) ?? "-"))")
         guard Accessibility.shared.isTrusted else {
             Accessibility.shared.request()
             onMissingPermission()
@@ -45,8 +45,8 @@ final class WindowManager {
     // MARK: Ein Fenster
 
     private func moveFocusedWindow(_ action: WindowAction, screens: [ScreenInfo]) {
-        guard let app = NSWorkspace.shared.frontmostApplication, app.processIdentifier != ownPID,
-              let window = AXWindow(focusedOf: app.processIdentifier), !window.isFullScreen, window.canMove,
+        guard let pid = Self.frontmostPID(), pid != ownPID,
+              let window = AXWindow(focusedOf: pid), !window.isFullScreen, window.canMove,
               let frame = window.frame else {
             debugLog("kein bewegbares Fenster gefunden")
             NSSound.beep()
@@ -98,7 +98,7 @@ final class WindowManager {
     // MARK: Alle Fenster eines Bildschirms
 
     private func tile(_ action: WindowAction, screens: [ScreenInfo]) {
-        let focused = NSWorkspace.shared.frontmostApplication.flatMap { AXWindow(focusedOf: $0.processIdentifier) }
+        let focused = Self.frontmostPID().flatMap { AXWindow(focusedOf: $0) }
         let screen = screens[targetScreenIndex(screens: screens, windowFrame: focused?.frame)]
         let found = visibleWindows(on: screen)
         // Das fokussierte Fenster kommt zuerst (oben links bzw. „Fokus“ links), der Rest in Z-Reihenfolge.
@@ -160,6 +160,26 @@ final class WindowManager {
     }
 
     // MARK: Hilfen
+
+    /// Prozess der vordersten App. Unter macOS 27 liefert NSRunningApplication für manche Apps
+    /// (gemessen: Safari, TextEdit) die PID -1 – dann über die Fensterliste (Besitzer des vordersten
+    /// normalen Fensters dieser App) und zuletzt über die systemweite Accessibility-Abfrage.
+    static func frontmostPID() -> pid_t? {
+        let app = NSWorkspace.shared.frontmostApplication
+        if let pid = app?.processIdentifier, pid > 0 { return pid }
+        if let name = app?.localizedName,
+           let list = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]],
+           let entry = list.first(where: { ($0[kCGWindowLayer as String] as? Int) == 0 && ($0[kCGWindowOwnerName as String] as? String) == name }),
+           let pid = entry[kCGWindowOwnerPID as String] as? pid_t, pid > 0 {
+            return pid
+        }
+        var value: CFTypeRef?
+        var pid: pid_t = 0
+        guard AXUIElementCopyAttributeValue(AXUIElementCreateSystemWide(), kAXFocusedApplicationAttribute as CFString, &value) == .success,
+              let element = value, CFGetTypeID(element) == AXUIElementGetTypeID(),
+              AXUIElementGetPid(element as! AXUIElement, &pid) == .success, pid > 0 else { return nil }
+        return pid
+    }
 
     private func targetScreenIndex(screens: [ScreenInfo], windowFrame: CGRect?) -> Int {
         if prefs.targetScreen == .window, let windowFrame {
