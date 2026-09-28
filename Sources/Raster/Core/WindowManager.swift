@@ -93,7 +93,7 @@ final class WindowManager {
             window.setPosition(fixed.origin)
             final = window.frame ?? fixed
         }
-        Self.scheduleRedraw(window, expected: final)
+        Self.scheduleRedraw(window, target: rect)
         return final
     }
 
@@ -102,19 +102,21 @@ final class WindowManager {
     /// Abhilfe: Höhe um einen Punkt verringern und erst nach einem eigenen Zeichendurchlauf der
     /// Ziel-App zurücksetzen. Gemessen wirkt das erst ab etwa 0,5 s nach der Änderung (früher verpufft
     /// es), daher nach 0,5 s und zur Sicherheit noch einmal nach 1,2 s.
-    private static func scheduleRedraw(_ window: AXWindow, expected: CGRect) {
+    private static func scheduleRedraw(_ window: AXWindow, target: CGRect) {
         for delay in [0.5, 1.2] {
             DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
-                // Nur, wenn das Fenster noch dort steht, wo Raster es hingesetzt hat (±8 pt).
+                // Nur, wenn das Fenster noch ungefähr dort steht, wo Raster es hingesetzt hat
+                // (großzügig, weil Apps die Größe runden oder begrenzen).
                 guard let frame = window.frame, frame.height > 2,
-                      abs(frame.minX - expected.minX) <= 8, abs(frame.minY - expected.minY) <= 8,
-                      abs(frame.width - expected.width) <= 8, abs(frame.height - expected.height) <= 8 else { return }
+                      abs(frame.midX - target.midX) <= 60, abs(frame.midY - target.midY) <= 60 else {
+                    NSLog("Raster: Neuzeichnen übersprungen (Fenster bewegt)")
+                    return
+                }
                 let shrunk = CGSize(width: frame.width, height: frame.height - 1)
                 window.setSize(shrunk)
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) {
-                    guard let now = window.frame, abs(now.height - shrunk.height) <= 2,
-                          abs(now.width - shrunk.width) <= 2 else { return }
                     window.setSize(frame.size)
+                    NSLog("Raster: Neuzeichnen angestoßen nach %.1f s", delay)
                 }
             }
         }
