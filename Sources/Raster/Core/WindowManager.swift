@@ -87,12 +87,25 @@ final class WindowManager {
     @discardableResult
     private func apply(_ rect: CGRect, to window: AXWindow, visible: CGRect) -> CGRect {
         window.setFrame(rect)
+        Self.scheduleRedraw(window)
         guard let actual = window.frame else { return rect }
         if let fixed = LayoutMath.correction(actual: actual, target: rect, visible: visible) {
             window.setPosition(fixed.origin)
             return window.frame ?? fixed
         }
         return actual
+    }
+
+    /// Unter macOS 27 zeichnen manche Apps (gemessen: TextEdit) ein Fenster, das per Accessibility
+    /// gleichzeitig vergrößert und verschoben wurde, nicht vollständig neu – der neue Bereich bleibt
+    /// schwarz, bis das Fenster das nächste Mal seine Größe ändert. Kurz nach der Änderung wird die Höhe
+    /// deshalb um einen Punkt verringert und sofort zurückgesetzt; das löst das Neuzeichnen aus.
+    private static func scheduleRedraw(_ window: AXWindow) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+            guard let frame = window.frame, frame.height > 2 else { return }
+            window.setSize(CGSize(width: frame.width, height: frame.height - 1))
+            window.setSize(frame.size)
+        }
     }
 
     // MARK: Alle Fenster eines Bildschirms
