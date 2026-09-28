@@ -100,17 +100,22 @@ final class WindowManager {
     /// Unter macOS 27 zeichnen manche Apps (gemessen: TextEdit) ein per Accessibility gleichzeitig
     /// vergrößertes und verschobenes Fenster nicht vollständig neu – der neue Bereich bleibt schwarz.
     /// Abhilfe: Höhe um einen Punkt verringern und erst nach einem eigenen Zeichendurchlauf der
-    /// Ziel-App zurücksetzen. Zwei direkt aufeinanderfolgende AX-Aufrufe fasst AppKit sonst in einem
-    /// Runloop-Durchlauf zu „keine Änderung“ zusammen, und nichts wird neu gezeichnet.
+    /// Ziel-App zurücksetzen. Gemessen wirkt das erst ab etwa 0,5 s nach der Änderung (früher verpufft
+    /// es), daher nach 0,5 s und zur Sicherheit noch einmal nach 1,2 s.
     private static func scheduleRedraw(_ window: AXWindow, expected: CGRect) {
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
-            guard let frame = window.frame, frame.isClose(to: expected), frame.height > 2 else { return }
-            let shrunk = CGSize(width: frame.width, height: frame.height - 1)
-            window.setSize(shrunk)
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) {
-                // Nur zurücksetzen, wenn die Verkleinerung angekommen ist und niemand dazwischen war.
-                guard let now = window.frame, now.size == shrunk else { return }
-                window.setSize(frame.size)
+        for delay in [0.5, 1.2] {
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+                // Nur, wenn das Fenster noch dort steht, wo Raster es hingesetzt hat (±8 pt).
+                guard let frame = window.frame, frame.height > 2,
+                      abs(frame.minX - expected.minX) <= 8, abs(frame.minY - expected.minY) <= 8,
+                      abs(frame.width - expected.width) <= 8, abs(frame.height - expected.height) <= 8 else { return }
+                let shrunk = CGSize(width: frame.width, height: frame.height - 1)
+                window.setSize(shrunk)
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) {
+                    guard let now = window.frame, abs(now.height - shrunk.height) <= 2,
+                          abs(now.width - shrunk.width) <= 2 else { return }
+                    window.setSize(frame.size)
+                }
             }
         }
     }
