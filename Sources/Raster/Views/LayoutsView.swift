@@ -138,7 +138,7 @@ struct PermissionCard: View {
                 .frame(width: 22)
             VStack(alignment: .leading, spacing: 6) {
                 Text("Freigabe fehlt").font(.callout.weight(.semibold))
-                Text("Raster braucht die Freigabe „Bedienungshilfen“, um Fenster anderer Apps zu verschieben. In den Systemeinstellungen Raster einschalten – danach geht es sofort los.")
+                Text("Raster braucht die Freigabe „Bedienungshilfen“, um Fenster anderer Apps zu verschieben. In den Systemeinstellungen Raster einschalten – danach geht es sofort los. Fehlt Raster in der Liste, unten auf „+“ klicken und Raster aus „Programme“ wählen.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)

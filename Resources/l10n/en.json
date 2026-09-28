@@ -57,7 +57,6 @@
   "Obere Hälfte": "Top half",
   "Raster": "Grid",
   "Raster beenden": "Quit Raster",
-  "Raster braucht die Freigabe „Bedienungshilfen“, um Fenster anderer Apps zu verschieben. In den Systemeinstellungen Raster einschalten – danach geht es sofort los.": "Raster needs the Accessibility permission to move other apps’ windows. Turn on Raster in System Settings – it works right away.",
   "Raster Fensteranordnung": "Raster window layout",
   "Raster öffnen": "Open Raster",
   "Raster – Fenster anordnen": "Raster – arrange windows",
@@ -92,5 +91,6 @@
   "Zurücksetzen": "Restore",
   "⅔ links": "⅔ left",
   "⅔ rechts": "⅔ right",
-  "⌫ löscht ein Kürzel, ⎋ bricht ab": "⌫ clears a shortcut, ⎋ cancels"
+  "⌫ löscht ein Kürzel, ⎋ bricht ab": "⌫ clears a shortcut, ⎋ cancels",
+  "Raster braucht die Freigabe „Bedienungshilfen“, um Fenster anderer Apps zu verschieben. In den Systemeinstellungen Raster einschalten – danach geht es sofort los. Fehlt Raster in der Liste, unten auf „+“ klicken und Raster aus „Programme“ wählen.": "Raster needs the Accessibility permission to move other apps’ windows. Turn on Raster in System Settings – it works right away. If Raster is not in the list, click “+” below it and choose Raster from Applications."
 }
