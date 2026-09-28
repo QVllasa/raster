@@ -87,24 +87,31 @@ final class WindowManager {
     @discardableResult
     private func apply(_ rect: CGRect, to window: AXWindow, visible: CGRect) -> CGRect {
         window.setFrame(rect)
-        Self.scheduleRedraw(window)
         guard let actual = window.frame else { return rect }
+        var final = actual
         if let fixed = LayoutMath.correction(actual: actual, target: rect, visible: visible) {
             window.setPosition(fixed.origin)
-            return window.frame ?? fixed
+            final = window.frame ?? fixed
         }
-        return actual
+        Self.scheduleRedraw(window, expected: final)
+        return final
     }
 
-    /// Unter macOS 27 zeichnen manche Apps (gemessen: TextEdit) ein Fenster, das per Accessibility
-    /// gleichzeitig vergrößert und verschoben wurde, nicht vollständig neu – der neue Bereich bleibt
-    /// schwarz, bis das Fenster das nächste Mal seine Größe ändert. Kurz nach der Änderung wird die Höhe
-    /// deshalb um einen Punkt verringert und sofort zurückgesetzt; das löst das Neuzeichnen aus.
-    private static func scheduleRedraw(_ window: AXWindow) {
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-            guard let frame = window.frame, frame.height > 2 else { return }
-            window.setSize(CGSize(width: frame.width, height: frame.height - 1))
-            window.setSize(frame.size)
+    /// Unter macOS 27 zeichnen manche Apps (gemessen: TextEdit) ein per Accessibility gleichzeitig
+    /// vergrößertes und verschobenes Fenster nicht vollständig neu – der neue Bereich bleibt schwarz.
+    /// Abhilfe: Höhe um einen Punkt verringern und erst nach einem eigenen Zeichendurchlauf der
+    /// Ziel-App zurücksetzen. Zwei direkt aufeinanderfolgende AX-Aufrufe fasst AppKit sonst in einem
+    /// Runloop-Durchlauf zu „keine Änderung“ zusammen, und nichts wird neu gezeichnet.
+    private static func scheduleRedraw(_ window: AXWindow, expected: CGRect) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+            guard let frame = window.frame, frame.isClose(to: expected), frame.height > 2 else { return }
+            let shrunk = CGSize(width: frame.width, height: frame.height - 1)
+            window.setSize(shrunk)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) {
+                // Nur zurücksetzen, wenn die Verkleinerung angekommen ist und niemand dazwischen war.
+                guard let now = window.frame, now.size == shrunk else { return }
+                window.setSize(frame.size)
+            }
         }
     }
 
