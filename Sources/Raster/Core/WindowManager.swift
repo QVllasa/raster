@@ -100,10 +100,10 @@ final class WindowManager {
     /// Unter macOS 27 zeichnen manche Apps (gemessen: TextEdit) ein per Accessibility gleichzeitig
     /// vergrößertes und verschobenes Fenster nicht vollständig neu – der neue Bereich bleibt schwarz.
     /// Abhilfe: Höhe um einen Punkt verringern und erst nach einem eigenen Zeichendurchlauf der
-    /// Ziel-App zurücksetzen. Gemessen wirkt das erst ab etwa 0,5 s nach der Änderung (früher verpufft
-    /// es), daher nach 0,5 s und zur Sicherheit noch einmal nach 1,2 s.
+    /// Ziel-App zurücksetzen. Gemessen verkürzt ein Anstoßen nach 0,1 s die schwarze Phase deutlich;
+    /// zur Sicherheit folgen weitere nach 0,5 s und 1,2 s.
     private static func scheduleRedraw(_ window: AXWindow, target: CGRect) {
-        for delay in [0.5, 1.2] {
+        for delay in [0.1, 0.5, 1.2] {
             DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
                 // Nur, wenn das Fenster noch ungefähr dort steht, wo Raster es hingesetzt hat
                 // (großzügig, weil Apps die Größe runden oder begrenzen).
