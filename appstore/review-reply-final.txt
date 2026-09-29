@@ -1,0 +1,32 @@
+Hello App Review team,
+
+thank you for the review. Below is the requested information for Raster 1.0.0 (build 33). The same information is in the Notes field of the App Review Information, and the screen recording is attached to this reply and to the App Review Information.
+
+SCREEN RECORDING: Captured on a physical MacBook Pro (Apple M5 Pro) with macOS 27, using TestFlight build 33, the exact build submitted. It starts with launching Raster from the Applications folder and shows the typical flow with English captions for every step and shortcut.
+
+Raster is a menu bar window manager (LSUIElement, no Dock icon). No login, account, sample files, in-app purchases or user-generated content.
+
+SETUP AND TEST
+1. Launch Raster. Click the Raster icon in the menu bar to open the panel.
+2. Click "Open System Settings" in the panel and enable Raster under Privacy & Security > Accessibility. No restart needed. If Raster is not listed, click + below the list and choose Raster from Applications (the panel shows this hint too).
+3. Click a window of another app (e.g. TextEdit) and press Command + Left/Right Arrow for the left/right half, Command + Up Arrow to maximize (again to restore), or click a tile in the panel.
+4. Control + Option + A arranges all windows as a grid, Control + Option + S side by side, Control + Option + M as focus + stack.
+5. The gear button in the panel opens the settings (shortcuts, gap, launch at login). Right-click the icon for Settings, Pause Shortcuts and Quit.
+
+PURPOSE AND AUDIENCE
+Arranging windows side by side or in a grid on macOS takes a lot of dragging. Raster does it with one shortcut or click. For anyone working with several windows at once (developers, writers, students, office workers), especially on large or external displays. Free, no ads, no subscription, no data collection.
+
+EXTERNAL SERVICES: None. No network entitlement, no network connections. Only Apple frameworks (AppKit, SwiftUI, Accessibility API, Carbon RegisterEventHotKey, ServiceManagement).
+REGIONAL DIFFERENCES: None. Interface language follows the system (German or English).
+REGULATED INDUSTRY / THIRD-PARTY MATERIAL: Not applicable. All code, icons and texts are our own; source code MIT-licensed at https://github.com/QVllasa/raster.
+
+ACCESSIBILITY AND SANDBOX
+The Accessibility permission is used only to read and set position and size of other apps' windows. Raster does not read window contents, does not monitor keyboard input and installs no event tap; shortcuts use RegisterEventHotKey. Only while the panel is open, a global mouse-click monitor closes the panel on outside clicks (event content is not evaluated).
+One sandbox exception: com.apple.security.temporary-exception.mach-lookup.local-name = com.apple.axserver. Without it every Accessibility call fails with kAXErrorCannotComplete (-25204) even with the permission granted.
+
+macOS 27: TextEdit may not fully redraw a window resized and moved via Accessibility (black area). Raster nudges the size by one point shortly afterwards; a very brief flicker can remain.
+
+
+Kind regards,
+Qendrim Vllasa
+Vllasa Ventures UG (haftungsbeschraenkt)
