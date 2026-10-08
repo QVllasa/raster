@@ -42,6 +42,9 @@ enum SelfTest {
             ("testFocusedWindowComesFirst", testFocusedWindowComesFirst),
             ("testMatchByFrame", testMatchByFrame),
             ("testLoginConsent", testLoginConsent),
+            ("testShortcutPayload", testShortcutPayload),
+            ("testShortcutScripts", testShortcutScripts),
+            ("testWindowListParse", testWindowListParse),
         ]
         for (name, test) in tests {
             let before = failures
@@ -449,5 +452,41 @@ enum SelfTest {
             prefs.loginConsentAnswered = true
             check(Preferences(defaults: defaults).loginConsentAnswered, "Antwort wird gespeichert")
         }
+    }
+
+    // MARK: Store-Version (Kurzbefehl)
+
+    static func testShortcutPayload() {
+        let json = ShortcutPayload.json(app: "TextEdit", current: CGPoint(x: 120.4, y: 79.6),
+                                        target: CGRect(x: 0, y: 25, width: 756, height: 920))
+        check(json == #"{"app":"TextEdit","x0":120,"y0":80,"x":0,"y":25,"w":756,"h":920}"#,
+              "JSON mit gerundeten Ganzzahlen, erhalten \(json)")
+        let odd = ShortcutPayload.json(app: #"A "B" \ C"#, current: .zero, target: .zero)
+        check(odd.hasPrefix(#"{"app":"A \"B\" \\ C""#), "Anführungszeichen und Backslash im App-Namen werden maskiert, erhalten \(odd)")
+        check(odd.data(using: .utf8).flatMap { try? JSONSerialization.jsonObject(with: $0) } != nil, "Ergebnis ist gültiges JSON")
+    }
+
+    static func testShortcutScripts() {
+        let script = ShortcutPayload.runScript(input: #"{"app":"TextEdit"}"#)
+        check(script.contains(#"run shortcut "Raster" with input "{\"app\":\"TextEdit\"}""#),
+              "JSON wird für AppleScript maskiert, erhalten \(script)")
+        check(script.contains("com.apple.shortcuts.events") && script.contains("with timeout"),
+              "läuft über Shortcuts Events mit Zeitlimit")
+        check(ShortcutPayload.existsScript().contains(#"exists shortcut "Raster""#), "Prüfskript fragt nach dem Kurzbefehl")
+    }
+
+    static func testWindowListParse() {
+        func row(_ id: Int, _ pid: Int, _ layer: Int, _ x: Double, _ y: Double, _ w: Double, _ h: Double, alpha: Double = 1, app: String = "App") -> [String: Any] {
+            [kCGWindowNumber as String: id, kCGWindowOwnerPID as String: pid, kCGWindowLayer as String: layer,
+             kCGWindowBounds as String: ["X": x, "Y": y, "Width": w, "Height": h] as NSDictionary,
+             kCGWindowAlpha as String: alpha, kCGWindowOwnerName as String: app]
+        }
+        let rows = [row(1, 10, 0, 0, 25, 756, 920, app: "TextEdit"), row(2, 99, 0, 0, 0, 800, 600), row(3, 20, 25, 0, 0, 800, 600),
+                    row(4, 20, 0, 10, 10, 50, 50), row(5, 20, 0, 100, 100, 800, 600, alpha: 0), row(6, 20, 0, 300, 300, 800, 600, app: "Safari")]
+        let entries = WindowList.parse(rows, excluding: 99)
+        check(entries.map(\.id) == [1, 6], "nur Ebene 0, fremde PID, sichtbar, nicht winzig – in Reihenfolge, erhalten \(entries.map(\.id))")
+        check(entries.first?.app == "TextEdit" && entries.first?.bounds == CGRect(x: 0, y: 25, width: 756, height: 920), "App-Name und Rahmen übernommen")
+        check(WindowList.frontmost(of: 20, in: entries)?.id == 6, "vorderstes Fenster einer App")
+        check(WindowList.frontmost(of: 42, in: entries) == nil, "unbekannte App → nil")
     }
 }

@@ -35,6 +35,8 @@
     <true/>
     <key>NSHighResolutionCapable</key>
     <true/>
+    <key>NSAppleEventsUsageDescription</key>
+    <string>Raster runs the “Raster” shortcut in Shortcuts to move and resize windows.</string>
     <key>NSHumanReadableCopyright</key>
     <string>© 2026 Qendrim Vllasa · MIT-Lizenz</string>
 </dict>

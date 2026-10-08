@@ -1,9 +1,47 @@
 import AppKit
-import ApplicationServices
 
-/// `Raster --ax-probe <pid>` prüft, ob Raster Fenster einer bestimmten App lesen und bewegen darf
-/// (z. B. in der App-Sandbox), ohne das vorderste Fenster des Users anzufassen.
+/// Diagnose von der Kommandozeile, ohne das vorderste Fenster des Users anzufassen:
+/// GitHub-Version `Raster --ax-probe <pid>` (Accessibility), Store-Version `Raster --shortcut-probe <pid>`
+/// (Begleit-Kurzbefehl in der Sandbox). Beide verschieben das erste Fenster der App kurz und stellen es zurück.
 enum Diagnostics {
+    #if APPSTORE
+    static func shortcutProbe(pid: pid_t) -> Int32 {
+        let entries = WindowList.all(excluding: ProcessInfo.processInfo.processIdentifier)
+        print("Fensterliste:", entries.count, "Fenster,", Set(entries.map(\.pid)).count, "Apps")
+        guard let entry = WindowList.frontmost(of: pid, in: entries) else {
+            print("✗ kein Fenster der PID \(pid) in der Liste")
+            return 1
+        }
+        let window = ShortcutWindow(entry: entry)
+        print("Fenster von \(entry.app) (\(entry.id)):", entry.bounds)
+        let moved = entry.bounds.offsetBy(dx: 40, dy: 30)
+        print("Eingabe:", ShortcutPayload.json(app: entry.app, current: entry.bounds.origin, target: moved))
+        let group = DispatchGroup()
+        group.enter()
+        var outcome: Result<CGRect?, Error> = .success(nil)
+        Task.detached {
+            defer { group.leave() }
+            do {
+                let after = try await window.setFrame(moved)
+                _ = try await window.setFrame(entry.bounds)
+                outcome = .success(after)
+            } catch {
+                outcome = .failure(error)
+            }
+        }
+        group.wait()
+        switch outcome {
+        case .success(let after):
+            print("Rahmen nachher:", after.map { "\($0)" } ?? "unbekannt")
+            let ok = after.map { $0.isClose(to: moved) } ?? false
+            print(ok ? "✓ Fenster lässt sich über den Kurzbefehl bewegen" : "✗ Fenster hat sich nicht bewegt")
+            return ok ? 0 : 1
+        case .failure(let error):
+            print("✗ Fehler:", error)
+            return 2
+        }
+    }
+    #else
     static func axProbe(pid: pid_t) -> Int32 {
         print("Freigabe (AXIsProcessTrusted):", AXIsProcessTrusted())
         MainActor.assumeIsolated {
@@ -23,12 +61,13 @@ enum Diagnostics {
         }
         print("Rahmen vorher:", before, "verschiebbar:", window.canMove)
         let moved = before.offsetBy(dx: 40, dy: 30)
-        window.setFrame(moved)
+        window.apply(moved)
         let after = window.frame ?? .null
         print("Rahmen nachher:", after)
-        window.setFrame(before)
+        window.apply(before)
         let success = after.isClose(to: moved)
         print(success ? "✓ Fenster lässt sich bewegen" : "✗ Fenster hat sich nicht bewegt")
         return success ? 0 : 1
     }
+    #endif
 }

@@ -8,7 +8,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         controller = StatusItemController(prefs: prefs)
-        WindowManager.shared.onMissingPermission = { [weak self] in self?.controller.openPanel() }
+        WindowManager.shared.onSetupNeeded = { [weak self] in self?.controller.openPanel() }
         hotKeys.onAction = { action in WindowManager.shared.perform(action) }
         registerShortcuts()
         firstRun()
@@ -30,15 +30,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     /// Beim allerersten Start: Autostart einrichten (GitHub-Version automatisch, Store-Version fragt im Panel)
-    /// und um die Freigabe bitten.
+    /// und das Panel mit den Einrichtungsschritten zeigen (Freigabe bzw. Kurzbefehl).
     private func firstRun() {
         let key = "firstRunDone"
         guard Bundle.main.bundleURL.pathExtension == "app", !UserDefaults.standard.bool(forKey: key) else { return }
         UserDefaults.standard.set(true, forKey: key)
-        if !Flavor.isAppStore { prefs.launchAtLogin = true }
+        #if APPSTORE
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { self.controller.openPanel() }
+        #else
+        prefs.launchAtLogin = true
         if !Accessibility.shared.isTrusted { Accessibility.shared.request() }
         if !Accessibility.shared.isTrusted || prefs.needsLoginConsent {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { self.controller.openPanel() }
         }
+        #endif
     }
 }

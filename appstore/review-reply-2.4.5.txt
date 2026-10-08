@@ -1,0 +1,20 @@
+Hello App Review team,
+
+thank you for the detailed feedback on build 33. We have rebuilt Raster so that both points are resolved:
+
+GUIDELINE 2.4.5(i) - TEMPORARY ENTITLEMENT EXCEPTION
+The exception com.apple.security.temporary-exception.mach-lookup.local-name (com.apple.axserver) has been removed. The new build requests no temporary exception at all. Its entitlements are com.apple.security.app-sandbox and com.apple.security.scripting-targets with the single target com.apple.shortcuts.events / access group com.apple.shortcuts.run (the access group declared in the scripting definition of Shortcuts Events).
+
+GUIDELINE 2.4.5 - ACCESSIBILITY
+Raster no longer uses the Accessibility API in any way. The binary contains no Accessibility symbols and the app never asks for the Accessibility permission. Window geometry is read with the public CGWindowList API, which needs no permission. Moving and resizing is delegated to Apple's own Shortcuts actions ("Find Windows", "Resize Window", "Move Window", part of macOS since Monterey): the app ships a small companion shortcut named "Raster" and runs it through the documented "run shortcut" command of Shortcuts Events. The user adds the shortcut once with one click and allows the automation through the standard macOS prompt.
+
+HOW TO TEST
+1. Launch Raster and click its menu bar icon. Allow the automation prompt ("Raster wants access to control Shortcuts Events").
+2. In the panel click "Add shortcut", then "Add Shortcut" in the Shortcuts app that opens.
+3. Click a TextEdit window and press Command + Left Arrow / Right Arrow, or click a tile in the panel.
+
+The Notes field of the App Review Information has been updated with the same steps. A new screen recording of this flow is attached.
+
+Kind regards,
+Qendrim Vllasa
+Vllasa Ventures UG (haftungsbeschraenkt)

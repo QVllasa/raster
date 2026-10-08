@@ -48,8 +48,11 @@ final class StatusItemController: NSObject, NSMenuDelegate {
             .environment(prefs)
             .environment(state)
             .environment(HotKeyCenter.shared)
-            .environment(Accessibility.shared)
-        return GlassPanel(rootView: root)
+        #if APPSTORE
+        return GlassPanel(rootView: root.environment(ShortcutSetup.shared))
+        #else
+        return GlassPanel(rootView: root.environment(Accessibility.shared))
+        #endif
     }
 
     @objc private func buttonClicked(_ sender: NSStatusBarButton) {

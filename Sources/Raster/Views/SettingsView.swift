@@ -3,7 +3,11 @@ import SwiftUI
 
 struct SettingsView: View {
     @Environment(Preferences.self) private var prefs
+    #if APPSTORE
+    @Environment(ShortcutSetup.self) private var setup
+    #else
     @Environment(Accessibility.self) private var accessibility
+    #endif
 
     var body: some View {
         @Bindable var prefs = prefs
@@ -74,6 +78,22 @@ struct SettingsView: View {
                 }
             }
 
+            #if APPSTORE
+            SectionCard(title: "Kurzbefehl") {
+                HStack(spacing: 8) {
+                    Circle()
+                        .fill(setup.isReady ? Color.green.gradient : Color.orange.gradient)
+                        .frame(width: 8, height: 8)
+                    Text(setup.isReady ? String(localized: "Eingerichtet – Raster bewegt Fenster über den Kurzbefehl „Raster“") : String(localized: "Nicht eingerichtet"))
+                        .font(.callout)
+                    Spacer()
+                    Button("Prüfen") { Task { await setup.refresh() } }
+                        .buttonStyle(.glass)
+                        .controlSize(.small)
+                        .disabled(setup.status == .checking)
+                }
+            }
+            #else
             SectionCard(title: "Bedienungshilfen") {
                 HStack(spacing: 8) {
                     Circle()
@@ -93,6 +113,8 @@ struct SettingsView: View {
                     }
                 }
             }
+
+            #endif
 
             HStack {
                 VStack(alignment: .leading, spacing: 1) {

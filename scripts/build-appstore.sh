@@ -40,8 +40,12 @@ for arch in arm64 x86_64; do
     cp "$BIN" "$SLICES/Raster-$arch"
 done
 
+echo "▸ Erzeuge und signiere den Begleit-Kurzbefehl …"
+python3 scripts/make-shortcut.py --out .build-store/shortcut
+
 echo "▸ Setze App-Paket zusammen …"
 rm -rf "$OUT" && mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
+cp .build-store/shortcut/Raster.shortcut "$APP/Contents/Resources/"
 lipo -create -output "$APP/Contents/MacOS/Raster" "$SLICES/Raster-arm64" "$SLICES/Raster-x86_64"
 strip -x "$APP/Contents/MacOS/Raster"
 sed -e "s/__VERSION__/$VERSION/" -e "s/__BUILD__/$BUILD/" -e "s/io.github.qvllasa.raster/$BUNDLE_ID/" \
@@ -53,16 +57,22 @@ cp -R Resources/en.lproj Resources/de.lproj "$APP/Contents/Resources/"
 printf 'APPL????' > "$APP/Contents/PkgInfo"
 cp "$PROFILE" "$APP/Contents/embedded.provisionprofile"
 
-echo "▸ Prüfe auf private oder gesperrte Schnittstellen …"
-if nm -u "$APP/Contents/MacOS/Raster" | grep -E "_AXUIElementGetWindow|CGWindowListCreateImage|CGSPrivate|_CGS" \
+echo "▸ Prüfe auf private, gesperrte oder Accessibility-Schnittstellen …"
+# Die Store-Version darf keinerlei Accessibility-API enthalten (Richtlinie 2.4.5, Ablehnung 02.10.2026):
+# Fenster werden über den Begleit-Kurzbefehl bewegt. Kein _AX*-Symbol, keine Sandbox-Ausnahme.
+if nm -u "$APP/Contents/MacOS/Raster" | grep -E "^_AX|_AXUIElementGetWindow|CGWindowListCreateImage|CGSPrivate|_CGS" \
     || strings "$APP/Contents/MacOS/Raster" | grep -E "^_?AXUIElementGetWindow$|^CGWindowListCreateImage$"; then
-    echo "✗ Private oder gesperrte Symbole gefunden – Abbruch"; exit 1
+    echo "✗ Private, gesperrte oder Accessibility-Symbole gefunden – Abbruch"; exit 1
+fi
+if grep -q "temporary-exception" appstore/Raster.entitlements; then
+    echo "✗ Entitlements enthalten eine temporäre Ausnahme – Apple gewährt sie nicht"; exit 1
 fi
 
 echo "▸ Signiere …"
 codesign --force --keychain "$KEYCHAIN" --sign "$APP_IDENTITY" --entitlements appstore/Raster.entitlements --timestamp=none "$APP"
 codesign --verify --strict --deep "$APP"
 codesign -d --entitlements - "$APP" 2>/dev/null | grep -q "app-sandbox" || { echo "✗ Sandbox fehlt"; exit 1; }
+codesign -d --entitlements - "$APP" 2>/dev/null | grep -q "com.apple.shortcuts.run" || { echo "✗ Scripting-Ziel Shortcuts Events fehlt"; exit 1; }
 
 echo "▸ Erstelle Installationspaket …"
 productbuild --component "$APP" /Applications --keychain "$KEYCHAIN" --sign "$PKG_IDENTITY" "$OUT/Raster-$VERSION.pkg"

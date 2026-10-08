@@ -228,15 +228,22 @@ def upload_screenshots(vloc_id, lang):
 
 
 def upload():
+    """Lädt das Paket mit altool hoch – lokal, sobald Xcode installiert ist, sonst über den Mac in XCODE_HOST."""
     pkg = ROOT / f"dist-store/Raster-{VERSION}.pkg"
     if not pkg.exists():
         raise SystemExit("✗ Paket fehlt – zuerst scripts/build-appstore.sh")
-    remote = f"/tmp/Raster-{VERSION}.pkg"
-    subprocess.run(["scp", "-q", str(pkg), f"{XCODE_HOST}:{remote}"], check=True)
-    cmd = (f"xcrun altool --upload-app -f {remote} -t macos --apiKey {os.environ['ASC_KEY_ID']} "
-           f"--apiIssuer {os.environ['ASC_ISSUER_ID']} --show-progress 2>&1 | tail -15")
-    out = subprocess.run(["ssh", XCODE_HOST, cmd], capture_output=True, text=True).stdout
-    print(out)
+    local_altool = subprocess.run(["xcrun", "--find", "altool"], capture_output=True, text=True).returncode == 0
+    args = ["xcrun", "altool", "--upload-app", "-f", str(pkg), "-t", "macos", "--apiKey", os.environ["ASC_KEY_ID"],
+            "--apiIssuer", os.environ["ASC_ISSUER_ID"], "--show-progress"]
+    if local_altool:
+        out = subprocess.run(args, capture_output=True, text=True)
+        out = out.stdout + out.stderr
+    else:
+        remote = f"/tmp/Raster-{VERSION}.pkg"
+        subprocess.run(["scp", "-q", str(pkg), f"{XCODE_HOST}:{remote}"], check=True)
+        args[4] = remote
+        out = subprocess.run(["ssh", XCODE_HOST, " ".join(args) + " 2>&1 | tail -15"], capture_output=True, text=True).stdout
+    print("\n".join(out.strip().splitlines()[-15:]))
     if "UPLOAD SUCCEEDED" not in out and "No errors uploading" not in out:
         raise SystemExit("✗ Upload fehlgeschlagen")
     wait_for_build()

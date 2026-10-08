@@ -1,52 +1,61 @@
 import AppKit
 
-/// Eindeutiger Schlüssel eines Fensters über App-Grenzen hinweg – nur öffentliche API (CFEqual/CFHash).
-struct WindowKey: Hashable {
-    let element: AXUIElement
-
-    static func == (lhs: WindowKey, rhs: WindowKey) -> Bool { CFEqual(lhs.element, rhs.element) }
-    func hash(into hasher: inout Hasher) { hasher.combine(CFHash(element)) }
-}
-
-/// Führt Aktionen an echten Fenstern aus: Zielbildschirm bestimmen, planen, per Accessibility setzen.
+/// Führt Aktionen an echten Fenstern aus: Zielbildschirm bestimmen, planen, Rahmen setzen.
+/// Die GitHub-Version greift per Accessibility zu (AXWindow), die App-Store-Version über den
+/// Begleit-Kurzbefehl (ShortcutWindow) – der Ablauf ist derselbe.
 @MainActor
 final class WindowManager {
     static let shared = WindowManager()
 
-    /// Wird aufgerufen, wenn eine Aktion an der fehlenden Freigabe scheitert (Panel mit Hinweis öffnen).
-    var onMissingPermission: () -> Void = {}
+    /// Wird aufgerufen, wenn eine Aktion an fehlender Einrichtung scheitert (Panel mit Hinweis öffnen).
+    var onSetupNeeded: () -> Void = {}
 
     private let prefs = Preferences.shared
     /// Fenstergröße vor dem ersten Einrasten – für „Wiederherstellen“.
-    private var original: [WindowKey: CGRect] = [:]
+    private var original: [AnyHashable: CGRect] = [:]
     /// Rechteck, das Raster zuletzt gesetzt hat – solange das Fenster so steht, gilt es als eingerastet.
-    private var snapped: [WindowKey: CGRect] = [:]
-    private var last: (key: WindowKey, action: WindowAction, step: Int)?
+    private var snapped: [AnyHashable: CGRect] = [:]
+    private var last: (key: AnyHashable, action: WindowAction, step: Int)?
     private let ownPID = ProcessInfo.processInfo.processIdentifier
+    /// Aktionen laufen nacheinander – beim Kurzbefehl dauert eine gut eine halbe Sekunde.
+    private var pending: Task<Void, Never>?
 
     private init() {}
 
     func perform(_ action: WindowAction) {
-        debugLog("Aktion \(action.rawValue), Freigabe \(Accessibility.shared.isTrusted), vorne \(NSWorkspace.shared.frontmostApplication?.localizedName ?? "-") (PID \(Self.frontmostPID().map(String.init) ?? "-"))")
-        guard Accessibility.shared.isTrusted else {
-            Accessibility.shared.request()
-            onMissingPermission()
+        let previous = pending
+        pending = Task { [weak self] in
+            await previous?.value
+            await self?.execute(action)
+        }
+    }
+
+    private func execute(_ action: WindowAction) async {
+        debugLog("Aktion \(action.rawValue), vorne \(NSWorkspace.shared.frontmostApplication?.localizedName ?? "-") (PID \(Self.frontmostPID().map(String.init) ?? "-"))")
+        guard await isReady() else {
+            onSetupNeeded()
             return
         }
         let screens = ScreenInfo.current()
         guard !screens.isEmpty else { return }
-        if action.group == .allWindows {
-            tile(action, screens: screens)
-        } else {
-            moveFocusedWindow(action, screens: screens)
+        do {
+            if action.group == .allWindows {
+                try await tile(action, screens: screens)
+            } else {
+                try await moveFocusedWindow(action, screens: screens)
+            }
+        } catch {
+            debugLog("Fehler: \(error)")
+            noteFailure(error)
+            NSSound.beep()
         }
     }
 
     // MARK: Ein Fenster
 
-    private func moveFocusedWindow(_ action: WindowAction, screens: [ScreenInfo]) {
+    private func moveFocusedWindow(_ action: WindowAction, screens: [ScreenInfo]) async throws {
         guard let pid = Self.frontmostPID(), pid != ownPID,
-              let window = AXWindow(focusedOf: pid), !window.isFullScreen, window.canMove,
+              let window = focusedWindow(of: pid), !window.isFullScreen, window.canMove,
               let frame = window.frame else {
             debugLog("kein bewegbares Fenster gefunden")
             NSSound.beep()
@@ -63,12 +72,12 @@ final class WindowManager {
                                   gap: prefs.gap, behavior: prefs.repeatBehavior, repeatStep: repeatStep) {
         case .restore:
             guard let previous = original[key] else { NSSound.beep(); return }
-            window.setFrame(LayoutMath.fit(previous, into: visible))
+            _ = try await window.setFrame(LayoutMath.fit(previous, into: visible))
             original[key] = nil
             snapped[key] = nil
             last = nil
         case let .frame(rect, step, screen)?:
-            let after = apply(rect, to: window, visible: visible[screen])
+            let after = try await apply(rect, to: window, visible: visible[screen])
             // Hat sich nichts bewegt (Fenster lehnt Änderungen ab), nichts merken – sonst gälte es als eingerastet.
             guard Self.didMove(before: frame, after: after, target: rect) else {
                 debugLog("Fenster hat die Änderung abgelehnt")
@@ -84,48 +93,16 @@ final class WindowManager {
     }
 
     /// Setzt das Fenster und korrigiert, falls es wegen einer Mindestgröße größer geblieben ist.
-    @discardableResult
-    private func apply(_ rect: CGRect, to window: AXWindow, visible: CGRect) -> CGRect {
-        window.setFrame(rect)
-        guard let actual = window.frame else { return rect }
-        var final = actual
-        if let fixed = LayoutMath.correction(actual: actual, target: rect, visible: visible) {
-            window.setPosition(fixed.origin)
-            final = window.frame ?? fixed
-        }
-        Self.scheduleRedraw(window, target: rect)
-        return final
-    }
-
-    /// Unter macOS 27 zeichnen manche Apps (gemessen: TextEdit) ein per Accessibility gleichzeitig
-    /// vergrößertes und verschobenes Fenster nicht vollständig neu – der neue Bereich bleibt schwarz.
-    /// Abhilfe: Höhe um einen Punkt verringern und erst nach einem eigenen Zeichendurchlauf der
-    /// Ziel-App zurücksetzen. Gemessen verkürzt ein Anstoßen nach 0,1 s die schwarze Phase deutlich;
-    /// zur Sicherheit folgen weitere nach 0,5 s und 1,2 s.
-    private static func scheduleRedraw(_ window: AXWindow, target: CGRect) {
-        for delay in [0.1, 0.5, 1.2] {
-            DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
-                // Nur, wenn das Fenster noch ungefähr dort steht, wo Raster es hingesetzt hat
-                // (großzügig, weil Apps die Größe runden oder begrenzen).
-                guard let frame = window.frame, frame.height > 2,
-                      abs(frame.midX - target.midX) <= 60, abs(frame.midY - target.midY) <= 60 else {
-                    NSLog("Raster: Neuzeichnen übersprungen (Fenster bewegt)")
-                    return
-                }
-                let shrunk = CGSize(width: frame.width, height: frame.height - 1)
-                window.setSize(shrunk)
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) {
-                    window.setSize(frame.size)
-                    NSLog("Raster: Neuzeichnen angestoßen nach %.1f s", delay)
-                }
-            }
-        }
+    private func apply(_ rect: CGRect, to window: any WindowHandle, visible: CGRect) async throws -> CGRect {
+        guard let actual = try await window.setFrame(rect) else { return rect }
+        guard let fixed = LayoutMath.correction(actual: actual, target: rect, visible: visible) else { return actual }
+        return try await window.setFrame(fixed) ?? fixed
     }
 
     // MARK: Alle Fenster eines Bildschirms
 
-    private func tile(_ action: WindowAction, screens: [ScreenInfo]) {
-        let focused = Self.frontmostPID().flatMap { AXWindow(focusedOf: $0) }
+    private func tile(_ action: WindowAction, screens: [ScreenInfo]) async throws {
+        let focused = Self.frontmostPID().flatMap { focusedWindow(of: $0) }
         let screen = screens[targetScreenIndex(screens: screens, windowFrame: focused?.frame)]
         let found = visibleWindows(on: screen)
         // Das fokussierte Fenster kommt zuerst (oben links bzw. „Fokus“ links), der Rest in Z-Reihenfolge.
@@ -144,14 +121,49 @@ final class WindowManager {
             let key = window.key
             let isSnapped = snapped[key].map { Self.approximately($0, frame) } ?? false
             if !isSnapped { original[key] = frame }
-            snapped[key] = apply(rect, to: window, visible: screen.visible)
+            snapped[key] = try await apply(rect, to: window, visible: screen.visible)
         }
         last = nil
     }
 
+    // MARK: Fenster finden (je nach Version)
+
+    #if APPSTORE
+    private func isReady() async -> Bool {
+        let setup = ShortcutSetup.shared
+        if !setup.isReady { await setup.refresh() }
+        return setup.isReady
+    }
+
+    private func noteFailure(_ error: Error) {
+        ShortcutSetup.shared.note(error)
+        if !ShortcutSetup.shared.isReady { onSetupNeeded() }
+    }
+
+    private func focusedWindow(of pid: pid_t) -> (any WindowHandle)? {
+        WindowList.frontmost(of: pid, in: WindowList.all(excluding: ownPID)).map(ShortcutWindow.init)
+    }
+
     /// Sichtbare Standardfenster eines Bildschirms, vorderstes zuerst.
-    func visibleWindows(on screen: ScreenInfo) -> [AXWindow] {
-        let entries = Self.windowEntries(on: screen, excluding: ownPID)
+    func visibleWindows(on screen: ScreenInfo) -> [any WindowHandle] {
+        WindowList.entries(on: screen, excluding: ownPID).map(ShortcutWindow.init)
+    }
+    #else
+    private func isReady() async -> Bool {
+        guard Accessibility.shared.isTrusted else {
+            Accessibility.shared.request()
+            return false
+        }
+        return true
+    }
+
+    private func noteFailure(_ error: Error) {}
+
+    private func focusedWindow(of pid: pid_t) -> (any WindowHandle)? { AXWindow(focusedOf: pid) }
+
+    /// Sichtbare Standardfenster eines Bildschirms, vorderstes zuerst.
+    func visibleWindows(on screen: ScreenInfo) -> [any WindowHandle] {
+        let entries = WindowList.entries(on: screen, excluding: ownPID)
         var byApp: [pid_t: [AXWindow]] = [:]
         for pid in Set(entries.map(\.pid)) { byApp[pid] = AXWindow.all(of: pid) }
         let candidates = byApp.values.flatMap { $0 }
@@ -164,6 +176,7 @@ final class WindowManager {
             return window.isStandard && !window.isMinimized && !window.isFullScreen ? window : nil
         }
     }
+    #endif
 
     /// Ordnet jedem Eintrag der Fensterliste das AX-Fenster derselben App mit gleichem Rahmen (±2 pt) zu;
     /// jedes AX-Fenster höchstens einmal. nil = kein passendes Fenster.
@@ -178,57 +191,23 @@ final class WindowManager {
         }
     }
 
-    /// Kopfzeile im Panel: Name des Zielbildschirms und Zahl der sichtbaren Fenster (ohne AX, daher auch ohne Freigabe).
+    /// Kopfzeile im Panel: Name des Zielbildschirms und Zahl der sichtbaren Fenster (ohne Freigabe möglich).
     func targetScreenSummary() -> (name: String, windowCount: Int) {
         let screens = ScreenInfo.current()
         guard !screens.isEmpty else { return (String(localized: "Kein Bildschirm"), 0) }
         let index = ScreenGeometry.screenIndex(containing: ScreenInfo.mouseLocation(), in: screens.map(\.frame))
-        return (screens[index].name, Self.windowEntries(on: screens[index], excluding: ownPID).count)
+        return (screens[index].name, WindowList.entries(on: screens[index], excluding: ownPID).count)
     }
 
     // MARK: Hilfen
 
-    /// Prozess der vordersten App. Unter macOS 27 liefert NSRunningApplication für manche Apps
-    /// (gemessen: Safari, TextEdit) die PID -1 – dann über die Fensterliste (Besitzer des vordersten
-    /// normalen Fensters dieser App) und zuletzt über die systemweite Accessibility-Abfrage.
-    static func frontmostPID() -> pid_t? {
-        let app = NSWorkspace.shared.frontmostApplication
-        if let pid = app?.processIdentifier, pid > 0 { return pid }
-        if let name = app?.localizedName,
-           let list = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]],
-           let entry = list.first(where: { ($0[kCGWindowLayer as String] as? Int) == 0 && ($0[kCGWindowOwnerName as String] as? String) == name }),
-           let pid = entry[kCGWindowOwnerPID as String] as? pid_t, pid > 0 {
-            return pid
-        }
-        var value: CFTypeRef?
-        var pid: pid_t = 0
-        guard AXUIElementCopyAttributeValue(AXUIElementCreateSystemWide(), kAXFocusedApplicationAttribute as CFString, &value) == .success,
-              let element = value, CFGetTypeID(element) == AXUIElementGetTypeID(),
-              AXUIElementGetPid(element as! AXUIElement, &pid) == .success, pid > 0 else { return nil }
-        return pid
-    }
+    static func frontmostPID() -> pid_t? { WindowList.frontmostPID() }
 
     private func targetScreenIndex(screens: [ScreenInfo], windowFrame: CGRect?) -> Int {
         if prefs.targetScreen == .window, let windowFrame {
             return ScreenGeometry.screenIndex(for: windowFrame, in: screens.map(\.frame))
         }
         return ScreenGeometry.screenIndex(containing: ScreenInfo.mouseLocation(), in: screens.map(\.frame))
-    }
-
-    /// Normale App-Fenster (Ebene 0) mit Mitte auf dem Bildschirm, in Z-Reihenfolge.
-    private static func windowEntries(on screen: ScreenInfo, excluding ownPID: pid_t) -> [(pid: pid_t, bounds: CGRect)] {
-        guard let list = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID)
-                as? [[String: Any]] else { return [] }
-        return list.compactMap { info in
-            guard (info[kCGWindowLayer as String] as? Int) == 0,
-                  let pid = info[kCGWindowOwnerPID as String] as? pid_t, pid != ownPID,
-                  let boundsDict = info[kCGWindowBounds as String] as? NSDictionary,
-                  let bounds = CGRect(dictionaryRepresentation: boundsDict),
-                  bounds.width >= 100, bounds.height >= 60,
-                  (info[kCGWindowAlpha as String] as? Double ?? 1) > 0,
-                  screen.frame.contains(CGPoint(x: bounds.midX, y: bounds.midY)) else { return nil }
-            return (pid, bounds)
-        }
     }
 
     private func debugLog(_ message: @autoclosure () -> String) {

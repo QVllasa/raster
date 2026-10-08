@@ -3,14 +3,24 @@ import SwiftUI
 /// Übersicht im Panel: alle Anordnungen als Kacheln, gruppiert. Klick wendet sie auf das vorderste Fenster an.
 struct LayoutsView: View {
     @Environment(PanelState.self) private var state
-    @Environment(Accessibility.self) private var accessibility
     @Environment(Preferences.self) private var prefs
+    #if APPSTORE
+    @Environment(ShortcutSetup.self) private var setup
+    #else
+    @Environment(Accessibility.self) private var accessibility
+    #endif
 
     var body: some View {
         VStack(spacing: 10) {
+            #if APPSTORE
+            if !setup.isReady {
+                StoreSetupCard()
+            }
+            #else
             if !accessibility.isTrusted {
                 PermissionCard()
             }
+            #endif
             if prefs.needsLoginConsent {
                 LoginConsentCard()
             }
@@ -127,6 +137,7 @@ struct LoginConsentCard: View {
     }
 }
 
+#if !APPSTORE
 struct PermissionCard: View {
     @Environment(Accessibility.self) private var accessibility
 
@@ -159,3 +170,78 @@ struct PermissionCard: View {
         .card()
     }
 }
+#else
+/// Store-Version: Die Sandbox erlaubt keine Accessibility-Zugriffe – Fenster bewegt der Begleit-Kurzbefehl „Raster“.
+/// Zwei Schritte: Kurzbefehl hinzufügen und Raster die Automation erlauben.
+struct StoreSetupCard: View {
+    @Environment(ShortcutSetup.self) private var setup
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: "puzzlepiece.extension.fill")
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundStyle(.orange.gradient)
+                .frame(width: 22)
+            VStack(alignment: .leading, spacing: 6) {
+                Text(title).font(.callout.weight(.semibold))
+                Text(explanation)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                HStack(spacing: 8) {
+                    switch setup.status {
+                    case .notInstalled, .unknown:
+                        Button("Kurzbefehl hinzufügen") { setup.install() }
+                            .buttonStyle(.glassProminent)
+                            .tint(.orange)
+                            .controlSize(.small)
+                    case .automationDenied:
+                        Button("Systemeinstellungen öffnen") { setup.openAutomationSettings() }
+                            .buttonStyle(.glassProminent)
+                            .tint(.orange)
+                            .controlSize(.small)
+                    case .checking, .ready, .error:
+                        EmptyView()
+                    }
+                    Button("Erneut prüfen") { Task { await setup.refresh() } }
+                        .buttonStyle(.glass)
+                        .controlSize(.small)
+                        .disabled(setup.status == .checking)
+                }
+            }
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background {
+            RoundedRectangle(cornerRadius: 18, style: .continuous).fill(.orange.opacity(0.12))
+        }
+        .card()
+        .task { if !setup.isReady { await setup.refresh() } }
+    }
+
+    private var title: String {
+        switch setup.status {
+        case .unknown, .checking: String(localized: "Einrichtung wird geprüft …")
+        case .notInstalled: String(localized: "Kurzbefehl „Raster“ hinzufügen")
+        case .automationDenied: String(localized: "Automation erlauben")
+        case .error: String(localized: "Kurzbefehl nicht erreichbar")
+        case .ready: ""
+        }
+    }
+
+    private var explanation: String {
+        switch setup.status {
+        case .unknown, .checking:
+            String(localized: "Raster fragt die Kurzbefehle-App, ob alles bereit ist. Beim ersten Mal bittet macOS um deine Erlaubnis – mit „Erlauben“ bestätigen.")
+        case .notInstalled:
+            String(localized: "Die App-Store-Version bewegt Fenster über Apples Kurzbefehle. Dafür einmal den mitgelieferten Kurzbefehl hinzufügen: Die Kurzbefehle-App öffnet sich, dort auf „Kurzbefehl hinzufügen“ klicken.")
+        case .automationDenied:
+            String(localized: "macOS braucht deine Erlaubnis, dass Raster Kurzbefehle ausführen darf: Systemeinstellungen → Datenschutz & Sicherheit → Automation → bei Raster „Kurzbefehle“ einschalten.")
+        case .error(let message):
+            String(localized: "Die Kurzbefehle-App hat nicht geantwortet: \(message)")
+        case .ready:
+            ""
+        }
+    }
+}
+#endif

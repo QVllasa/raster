@@ -1,0 +1,2 @@
+/* Store build: automation prompt for “Shortcuts Events” */
+"NSAppleEventsUsageDescription" = "Raster runs the “Raster” shortcut in Shortcuts to move and resize windows.";

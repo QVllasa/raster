@@ -8,11 +8,16 @@
     <string>QU9LB387VU</string>
     <key>com.apple.security.app-sandbox</key>
     <true/>
-    <!-- Ohne diese Ausnahme verweigert die Sandbox den Zugriff auf den Accessibility-Server
-         anderer Apps (kAXErrorCannotComplete), obwohl der Nutzer die Freigabe erteilt hat. -->
-    <key>com.apple.security.temporary-exception.mach-lookup.local-name</key>
-    <array>
-        <string>com.apple.axserver</string>
-    </array>
+    <!-- Die Store-Version bewegt Fenster nicht per Accessibility (in der Sandbox gesperrt, Ausnahme wird nicht
+         gewährt – App Review 02.10.2026), sondern über den Begleit-Kurzbefehl „Raster“. Dafür darf sie genau
+         einen Befehl an „Shortcuts Events“ schicken: „run shortcut“ (Zugriffsgruppe com.apple.shortcuts.run
+         aus dessen Scripting-Definition). Keine temporäre Ausnahme nötig. -->
+    <key>com.apple.security.scripting-targets</key>
+    <dict>
+        <key>com.apple.shortcuts.events</key>
+        <array>
+            <string>com.apple.shortcuts.run</string>
+        </array>
+    </dict>
 </dict>
 </plist>

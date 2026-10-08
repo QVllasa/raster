@@ -1,8 +1,12 @@
 Raster is a menu bar window manager (LSUIElement, no Dock icon). No login, account, sample files, in-app purchases or user-generated content.
 
+CHANGES SINCE THE LAST REVIEW (Guideline 2.4.5 and 2.4.5(i))
+Raster no longer uses the Accessibility API at all, and the temporary sandbox exception is gone. The binary contains no AX* symbol. Entitlements: com.apple.security.app-sandbox and com.apple.security.scripting-targets (target com.apple.shortcuts.events, access group com.apple.shortcuts.run), nothing else.
+How windows are moved now: Raster reads window positions with the public CGWindowList API (no permission needed) and computes the target frame itself. The actual move/resize is done by Apple's own Shortcuts actions "Find Windows", "Resize Window" and "Move Window" in a companion shortcut named "Raster" that ships inside the app bundle. Raster runs it via the documented "run shortcut" command of Shortcuts Events (Apple events, user consent through the standard Automation prompt). Shortcuts itself requests no Accessibility permission; the window actions are Apple system actions.
+
 SETUP AND TEST
-1. Launch Raster. Click the Raster icon in the menu bar to open the panel.
-2. Click "Open System Settings" in the panel and enable Raster under Privacy & Security > Accessibility. No restart needed. If Raster is not listed, click + below the list and choose Raster from Applications (the panel shows this hint too).
+1. Launch Raster. Click the Raster icon in the menu bar to open the panel. macOS asks "Raster wants access to control Shortcuts Events" - click Allow.
+2. The panel shows "Add the 'Raster' shortcut". Click "Add shortcut": the Shortcuts app opens with the bundled shortcut - click "Add Shortcut". Back in the Raster panel the hint disappears (or click "Check again").
 3. Click a window of another app (e.g. TextEdit) and press Command + Left/Right Arrow for the left/right half, Command + Up Arrow to maximize (again to restore), or click a tile in the panel.
 4. Control + Option + A arranges all windows as a grid, Control + Option + S side by side, Control + Option + M as focus + stack.
 5. The gear button in the panel opens the settings (shortcuts, gap, launch at login). Right-click the icon for Settings, Pause Shortcuts and Quit.
@@ -10,14 +14,9 @@ SETUP AND TEST
 PURPOSE AND AUDIENCE
 Arranging windows side by side or in a grid on macOS takes a lot of dragging. Raster does it with one shortcut or click. For anyone working with several windows at once (developers, writers, students, office workers), especially on large or external displays. Free, no ads, no subscription, no data collection.
 
-EXTERNAL SERVICES: None. No network entitlement, no network connections. Only Apple frameworks (AppKit, SwiftUI, Accessibility API, Carbon RegisterEventHotKey, ServiceManagement).
+EXTERNAL SERVICES: None. No network entitlement, no network connections. Only Apple frameworks (AppKit, SwiftUI, CoreGraphics window list, Carbon RegisterEventHotKey, ServiceManagement, Apple events to Shortcuts Events).
 REGIONAL DIFFERENCES: None. Interface language follows the system (German or English).
 REGULATED INDUSTRY / THIRD-PARTY MATERIAL: Not applicable. All code, icons and texts are our own; source code MIT-licensed at https://github.com/QVllasa/raster.
 
-ACCESSIBILITY AND SANDBOX
-The Accessibility permission is used only to read and set position and size of other apps' windows. Raster does not read window contents, does not monitor keyboard input and installs no event tap; shortcuts use RegisterEventHotKey. Only while the panel is open, a global mouse-click monitor closes the panel on outside clicks (event content is not evaluated).
-One sandbox exception: com.apple.security.temporary-exception.mach-lookup.local-name = com.apple.axserver. Without it every Accessibility call fails with kAXErrorCannotComplete (-25204) even with the permission granted.
-
-macOS 27: TextEdit may not fully redraw a window resized and moved via Accessibility (black area). Raster nudges the size by one point shortly afterwards; a very brief flicker can remain.
-
-A screen recording on a physical MacBook Pro with macOS 27 (TestFlight build 33) is attached.
+PRIVACY
+Raster does not read window contents or titles, does not monitor keyboard input and installs no event tap; shortcuts use RegisterEventHotKey. Only while the panel is open, a global mouse-click monitor closes the panel on outside clicks (event content is not evaluated).

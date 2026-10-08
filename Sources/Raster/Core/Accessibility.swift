@@ -1,8 +1,10 @@
+#if !APPSTORE
 import AppKit
 import ApplicationServices
 import Observation
 
-/// Freigabe „Bedienungshilfen“ – ohne sie darf Raster keine fremden Fenster bewegen.
+/// Freigabe „Bedienungshilfen“ – ohne sie darf die GitHub-Version keine fremden Fenster bewegen.
+/// (Die App-Store-Version nutzt stattdessen den Begleit-Kurzbefehl, siehe ShortcutEngine.swift.)
 @MainActor
 @Observable
 final class Accessibility {
@@ -43,3 +45,4 @@ final class Accessibility {
         }
     }
 }
+#endif

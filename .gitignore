@@ -7,3 +7,4 @@ __pycache__/
 .build-store/
 dist-store/
 .playwright-mcp/
+dist-store-local/

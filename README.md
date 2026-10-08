@@ -78,7 +78,7 @@ scripts/install.sh                # nach /Programme kopieren und starten
 
 **Release bauen:** `scripts/notarize.sh` signiert mit Developer ID (Hardened Runtime), lässt Apple notarisieren und packt das ZIP (einmalig vorher `scripts/import-devid.sh`).
 
-**Mac App Store:** `scripts/build-appstore.sh` baut die Store-Version (Sandbox mit genau einer Ausnahme für den Accessibility-Server, ohne private Schnittstellen), `scripts/asc_submit.py` erledigt Texte, Screenshots und Einreichung über die App-Store-Connect-API. Warum die Sandbox eine Ausnahme braucht, steht mit Messwerten in [docs/app-store-bewertung.md](docs/app-store-bewertung.md).
+**Mac App Store:** `scripts/build-appstore.sh` baut die Store-Version: Sandbox ohne jede Ausnahme und ohne Accessibility – Fenster liest sie über die Fensterliste (CGWindowList) und bewegt sie über den mitgelieferten Kurzbefehl „Raster“ (Apples Aktionen „Fenster suchen / bewegen / Größe ändern“, erzeugt von `scripts/make-shortcut.py`). `scripts/asc_submit.py` erledigt Texte, Screenshots und Einreichung über die App-Store-Connect-API. Hintergrund und Messwerte: [docs/app-store-bewertung.md](docs/app-store-bewertung.md).
 
 **Tipp für Selbstbauer:** Mit einer ad-hoc-Signatur verfällt die Bedienungshilfen-Freigabe bei jedem Neubau. `scripts/build-app.sh` nutzt deshalb eine lokale Signatur-Identität „Raster Local Signing“ aus `~/Library/Keychains/raster-signing.keychain-db`, falls vorhanden – dann bleibt die Freigabe über Updates hinweg gültig.
 
