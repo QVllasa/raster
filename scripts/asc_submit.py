@@ -7,6 +7,7 @@
   uv run scripts/asc_submit.py prepare   # Texte, Kategorien, Alter, Preis, Verfügbarkeit, Screenshots, Prüfer-Infos
   uv run scripts/asc_submit.py upload    # Build hochladen (altool auf dem Mac mit Xcode) und auf Verarbeitung warten
   uv run scripts/asc_submit.py attach    # verarbeiteten Build an die Version hängen
+  uv run scripts/asc_submit.py video     # dist-store/Raster-review-demo.mp4 als Anhang für App Review hochladen
   uv run scripts/asc_submit.py check     # Vollständigkeit prüfen
   uv run scripts/asc_submit.py submit    # zur Prüfung einreichen
   uv run scripts/asc_submit.py status    # Status abfragen
@@ -282,6 +283,39 @@ def attach():
     print("✓ Build", build, "an Version", v["attributes"]["versionString"], "angehängt")
 
 
+def video():
+    """Bildschirmvideo als Anhang für App Review hochladen (ersetzt vorhandene Anhänge)."""
+    import requests
+    path = ROOT / "dist-store/Raster-review-demo.mp4"
+    blob = path.read_bytes()
+    v = mac_version(app()["id"])
+    s, d = call("GET", f"/v1/appStoreVersions/{v['id']}/appStoreReviewDetail")
+    detail = ok(s, d, "Prüfer-Infos lesen")["data"]
+    for old in get(f"/v1/appStoreReviewDetails/{detail['id']}/appStoreReviewAttachments")["data"]:
+        call("DELETE", f"/v1/appStoreReviewAttachments/{old['id']}")
+        print("  – alter Anhang entfernt:", old["attributes"].get("fileName"))
+    att = ok(*call("POST", "/v1/appStoreReviewAttachments", {"data": {"type": "appStoreReviewAttachments",
+        "attributes": {"fileName": path.name, "fileSize": len(blob)},
+        "relationships": {"appStoreReviewDetail": {"data": {"type": "appStoreReviewDetails", "id": detail["id"]}}}}}),
+        "Anhang reservieren")["data"]
+    for op in att["attributes"]["uploadOperations"]:
+        chunk = blob[op["offset"]: op["offset"] + op["length"]]
+        r = requests.request(op["method"], op["url"], data=chunk,
+                             headers={h["name"]: h["value"] for h in op.get("requestHeaders", [])}, timeout=300)
+        if r.status_code >= 300:
+            raise SystemExit(f"✗ Upload {path.name}: {r.status_code} {r.text[:300]}")
+    ok(*call("PATCH", f"/v1/appStoreReviewAttachments/{att['id']}", {"data": {"type": "appStoreReviewAttachments",
+        "id": att["id"], "attributes": {"uploaded": True, "sourceFileChecksum": hashlib.md5(blob).hexdigest()}}}), "Anhang abschließen")
+    for _ in range(60):
+        state = get(f"/v1/appStoreReviewAttachments/{att['id']}")["data"]["attributes"]["assetDeliveryState"]["state"]
+        if state == "COMPLETE":
+            break
+        if state == "FAILED":
+            raise SystemExit("✗ Anhang-Verarbeitung fehlgeschlagen")
+        time.sleep(5)
+    print(f"✓ Video {path.name} ({len(blob) // 1024 // 1024} MB) als Review-Anhang hochgeladen: {state}")
+
+
 def check():
     a = app(); v = mac_version(a["id"])
     print("App:", a["attributes"]["name"], "| Version:", v["attributes"]["versionString"], v["attributes"]["appStoreState"])
@@ -314,5 +348,5 @@ def status():
 
 
 if __name__ == "__main__":
-    {"prepare": prepare, "upload": upload, "attach": attach, "check": check, "submit": submit,
+    {"prepare": prepare, "upload": upload, "attach": attach, "video": video, "check": check, "submit": submit,
      "status": status, "wait": wait_for_build}[sys.argv[1]]()

@@ -221,16 +221,20 @@ def click_title(win):
     d.click(x + w * 0.5, y + 14)
 
 
-def allow_automation(timeout=6):
+def allow_automation(timeout=6, caption=None, hold=3.0):
     """Automations-Abfrage „Raster möchte Shortcuts Events steuern“ sichtbar mit „Erlauben“ beantworten.
-    Liefert True, wenn der Dialog erschien. Der Dialog gehört dem Prozess UserNotificationCenter."""
+    Liefert True, wenn der Dialog erschien. Der Dialog gehört dem Prozess UserNotificationCenter.
+    Mit `caption` wird die Einblendung gesetzt, solange der Dialog noch steht, und erst nach `hold` geklickt."""
     end = time.time() + timeout
     while time.time() < end:
         unc = d.app("com.apple.UserNotificationCenter")
         if unc is not None:
             for el, _ in d.walk(unc, max_depth=8):
                 if d.attr(el, "AXRole") == "AXButton" and d.label(el).split(" | ")[0].strip().lower() in ("erlauben", "ok", "allow"):
-                    time.sleep(1.2)                       # Dialog kurz stehen lassen, damit man ihn lesen kann
+                    if caption:
+                        d.mark(caption, hold + 2)
+                    time.sleep(hold)                      # Dialog stehen lassen, damit man ihn lesen kann
+                    d.move(*d.center(el), 0.5); time.sleep(0.2)
                     d.click(*d.center(el))
                     return True
         time.sleep(0.25)
@@ -356,21 +360,20 @@ def run():
         again = panel_element(a, "AXButton", "Erneut prüfen", timeout=1)
         if again is not None:
             d.move(*d.center(again), 0.5); wait(0.2); d.click(*d.center(again))
-        if allow_automation(timeout=8):
-            d.mark("macOS asks once whether Raster may control Shortcuts Events. The user allows it", 5)
-            wait(3)
+        allow_automation(timeout=8, caption="macOS asks once whether Raster may control Shortcuts Events. The user allows it")
+        wait(1.5)
+        open_panel(a); wait(0.5)                          # der Dialog hat das Panel geschlossen – Bereitschaft zeigen
         end = time.time() + 15
-        while time.time() < end and setup_card(a, timeout=0.3) is not None:
+        while time.time() < end and (setup_card(a, timeout=0.3) is not None
+                                     or panel_element(a, "AXButton", "Erneut prüfen", timeout=0.3) is not None):
             time.sleep(0.3)
         if setup_card(a, timeout=0.3) is not None or panel_element(a, "AXButton", "Erneut prüfen", timeout=0.3) is not None:
             raise SystemExit("Einrichtungskarte verschwindet nicht")
-        wait(1)
         d.mark("Shortcut added, automation allowed. Raster is ready, no restart needed", 4)
-        wait(3)
+        wait(3.5)
+        close_panel(a); wait(0.5)
     else:
-        if allow_automation(timeout=6):
-            d.mark("macOS asks once whether Raster may control Shortcuts Events. The user allows it", 5)
-            wait(3)
+        allow_automation(timeout=6, caption="macOS asks once whether Raster may control Shortcuts Events. The user allows it")
         d.mark("The companion shortcut was already added. Raster is ready", 3)
         wait(2.5)
 
