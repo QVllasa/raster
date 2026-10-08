@@ -5,16 +5,20 @@
   scenario.py record <ordner>    Aufnahme: screencapture + Ablauf + steps.json
   scenario.py restore <ordner>   ausgeblendete Apps wieder einblenden
 
-Der User schaltet in den Systemeinstellungen selbst die Bedienungshilfen für Raster ein;
-das Skript wartet darauf (Raster zeigt dann die Karte „Freigabe fehlt“ nicht mehr).
+Store-Version (seit 08.10.2026): statt der Bedienungshilfen-Freigabe zeigt das Video die Automations-
+Abfrage für Shortcuts Events und das Hinzufügen des Begleit-Kurzbefehls „Raster“ in der Kurzbefehle-App.
+Vor einer Aufnahme ab Erststart: `tccutil reset AppleEvents com.vllasa.raster`, den Kurzbefehl „Raster“
+in der Kurzbefehle-App löschen, `defaults delete com.vllasa.raster firstRunDone`.
+Build-Nummer für die Einblendung: Umgebungsvariable RASTER_BUILD (sonst Zahl der Commits).
 """
 import json, os, signal, subprocess, sys, time
 import Quartz
 import drive as d
 
 RASTER = "com.vllasa.raster"
+BUILD = os.environ.get("RASTER_BUILD") or subprocess.run(["git", "rev-list", "--count", "HEAD"], capture_output=True, text=True).stdout.strip()
 DEMO = ""  # Pfad des Demo-Ordners, wird in setup()/record() gesetzt
-DEMO_APPS = {"com.apple.finder", "com.apple.TextEdit", RASTER, "com.apple.systempreferences"}
+DEMO_APPS = {"com.apple.finder", "com.apple.TextEdit", RASTER, "com.apple.systempreferences", "com.apple.shortcuts"}
 
 
 def osa(script):
@@ -214,6 +218,40 @@ def click_title(win):
     d.click(x + w * 0.5, y + 14)
 
 
+def allow_automation(timeout=6):
+    """Automations-Abfrage „Raster möchte Shortcuts Events steuern“ sichtbar mit „Erlauben“ beantworten.
+    Liefert True, wenn der Dialog erschien. Der Dialog gehört dem Prozess UserNotificationCenter."""
+    end = time.time() + timeout
+    while time.time() < end:
+        unc = d.app("com.apple.UserNotificationCenter")
+        if unc is not None:
+            for el, _ in d.walk(unc, max_depth=8):
+                if d.attr(el, "AXRole") == "AXButton" and d.label(el).strip().lower() in ("erlauben", "ok", "allow"):
+                    time.sleep(1.2)                       # Dialog kurz stehen lassen, damit man ihn lesen kann
+                    d.click(*d.center(el))
+                    return True
+        time.sleep(0.25)
+    return False
+
+
+def shortcuts_button(text, timeout=10):
+    """Knopf im Import-Fenster der Kurzbefehle-App (z. B. „Kurzbefehl hinzufügen“)."""
+    end = time.time() + timeout
+    while time.time() < end:
+        sc = d.app("com.apple.shortcuts")
+        for w in (d.attr(sc, "AXWindows") or []) if sc is not None else []:
+            el = d.find(w, role="AXButton", contains=text)
+            if el is not None and d.frame(el):
+                return el
+        time.sleep(0.3)
+    return None
+
+
+def setup_card(a, timeout=0.5):
+    """Einrichtungskarte der Store-Version im Panel (Knopf „Kurzbefehl hinzufügen“)."""
+    return panel_element(a, "AXButton", "Kurzbefehl hinzufügen", timeout=timeout)
+
+
 def panel_open(a):
     return bool(d.attr(a, "AXWindows"))
 
@@ -270,7 +308,7 @@ def wait(s):
 
 def run():
     # 1. Start
-    d.mark("Raster 1.0 (build 33, TestFlight) on macOS 27: launching the app from the Applications folder", 9)
+    d.mark(f"Raster 1.0 (build {BUILD}) on macOS 27: launching the app from the Applications folder", 9)
     fw_ = finder_window()
     d.press_action(fw_, "AXRaise")
     osa('tell application "Finder" to activate'); wait(0.4)
@@ -294,48 +332,38 @@ def run():
     d.mark("The panel shows every layout as a tile, together with its keyboard shortcut", 4)
     wait(3.2)
 
-    # 3. Freigabe
-    btn = panel_element(a, "AXButton", "Systemeinstellungen", timeout=0.5)
-    if btn is not None:
-        d.mark("The Accessibility permission is missing. Raster explains why and opens System Settings", 5)
+    # 3. Einrichtung der Store-Version: Automation erlauben, Kurzbefehl hinzufügen (keine Bedienungshilfen)
+    if allow_automation(timeout=4):
+        d.mark("macOS asks once whether Raster may control Shortcuts Events. The user allows it", 5)
         wait(2.5)
-        d.click(*d.center(btn)); wait(3)
-        d.mark("The user turns Raster on under Privacy & Security > Accessibility", 8)
-        idx = len(d.LOG) - 1
-        end = time.time() + 180
-        while time.time() < end and panel_element(a, "AXButton", "Systemeinstellungen", timeout=0.5) is not None:
-            time.sleep(0.5)
-        d.LOG[idx]["hold"] = round(time.time() - d.T0 - d.LOG[idx]["t"], 2)
-        wait(1.5)
-        d.mark("Permission granted. No restart needed", 3)
-        quit_if_running("System Settings"); wait(2.5)
+    btn = setup_card(a, timeout=1)
+    if btn is not None:
+        d.mark("Raster needs its companion shortcut. No Accessibility permission is requested", 5)
+        wait(2.5)
+        d.move(*d.center(btn), 0.6); wait(0.3); d.click(*d.center(btn)); wait(3.5)
+        d.mark("Shortcuts shows the bundled shortcut: Find Windows, Resize Window, Move Window", 6)
+        add = shortcuts_button("hinzufügen", timeout=12)
+        wait(4)
+        if add is None:
+            raise SystemExit("Kurzbefehle: Knopf „Kurzbefehl hinzufügen“ nicht gefunden")
+        d.mark("Click Add Shortcut", 3)
+        d.move(*d.center(add), 0.6); wait(0.3); d.click(*d.center(add)); wait(2.5)
+        quit_if_running("Shortcuts"); quit_if_running("Kurzbefehle"); wait(1.5)
+        open_panel(a); wait(0.5)
+        again = panel_element(a, "AXButton", "Erneut prüfen", timeout=1)
+        if again is not None:
+            d.click(*d.center(again))
+        end = time.time() + 15
+        while time.time() < end and setup_card(a, timeout=0.3) is not None:
+            time.sleep(0.3)
+        if setup_card(a, timeout=0.3) is not None:
+            raise SystemExit("Einrichtungskarte verschwindet nicht")
+        wait(1)
+        d.mark("Shortcut added. Raster is ready, no restart needed", 3)
+        wait(2.5)
     else:
-        close_panel(a); wait(0.5)
-        d.mark("The Accessibility permission was granted beforehand in System Settings", 4)
-        subprocess.run(["open", "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"])
-        win, t_open = None, None
-        for _ in range(40):                           # warten, bis das Fenster sichtbar ist
-            ss = d.app("com.apple.systempreferences")
-            ws = d.attr(ss, "AXWindows") if ss is not None else None
-            if ws:
-                win, t_open = ws[0], time.time() - d.T0; break
-            time.sleep(0.1)
-        wait(3)
-        d.mark("If Raster is not in this list, click + below it and choose Raster from Applications", 5)
-        wait(5)
-        fr = d.frame(win) if win is not None else None
-        wx, wy = (fr[0], fr[1]) if fr else (0, 300)
-        quit_if_running("System Settings")
-        for _ in range(40):                           # warten, bis es wieder weg ist
-            ss = d.app("com.apple.systempreferences")
-            if ss is None or not d.attr(ss, "AXWindows"):
-                break
-            time.sleep(0.1)
-        t_close = time.time() - d.T0
-        # Name, Profilbild und Familie in der Seitenleiste unkenntlich machen (Punkte → Pixel ×2)
-        d.LOG.append({"t": round((t_open or t_close) - 0.3, 2), "hold": round(t_close - (t_open or t_close) + 0.8, 2),
-                      "blur": [int(wx * 2), int((wy + 85) * 2), 280 * 2, 110 * 2]})
-        wait(0.8)
+        d.mark("The companion shortcut was already added. Raster is ready", 3)
+        wait(2.5)
 
     # 5. Tastenkürzel
     notes, ideas, finder = textedit_window("Meeting Notes"), textedit_window("Ideas"), finder_window()

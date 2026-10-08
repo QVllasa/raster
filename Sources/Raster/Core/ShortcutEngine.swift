@@ -20,7 +20,19 @@ struct ShortcutWindow: WindowHandle {
     func setFrame(_ rect: CGRect) async throws -> CGRect? {
         let current = frame ?? entry.bounds
         try await ShortcutRunner.run(input: ShortcutPayload.json(app: entry.app, current: current.origin, target: rect))
-        return WindowList.entry(id: entry.id)?.bounds
+        // Der Window-Server meldet den neuen Rahmen etwas später, als der Kurzbefehl zurückkehrt (gemessen:
+        // direkt danach noch der alte oder ein Zwischenstand der drei Aktionen). Deshalb nachlesen, bis der
+        // Rahmen am Ziel ist oder sich nicht mehr ändert – höchstens etwa 0,5 s.
+        var latest = WindowList.entry(id: entry.id)?.bounds
+        var previous: CGRect?
+        for _ in 0..<12 {
+            guard let bounds = latest, !bounds.isClose(to: rect) else { break }
+            if let previous, previous.isClose(to: bounds), !bounds.isClose(to: current) { break }   // stabil, aber anders
+            previous = bounds
+            try await Task.sleep(nanoseconds: 40_000_000)
+            latest = WindowList.entry(id: entry.id)?.bounds
+        }
+        return latest
     }
 }
 

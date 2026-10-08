@@ -1,55 +1,91 @@
-# Raster im Mac App Store – Bewertung (26.09.2026)
+# Raster im Mac App Store – Bewertung (Stand 08.10.2026)
 
-**Ergebnis: Ja – mit genau einer Ausnahme-Berechtigung läuft Raster vollständig in der App-Sandbox.**
-Raster erscheint daher zusätzlich zur freien GitHub-Version als kostenlose App im Mac App Store
-(Anbieter: Vllasa Ventures UG (haftungsbeschränkt), Bundle-ID `com.vllasa.raster`).
+**Ergebnis: Ja – die Store-Version läuft vollständig in der App-Sandbox, ohne Accessibility und ohne
+Ausnahme-Berechtigung.** Fenster werden über einen mitgelieferten Kurzbefehl bewegt. Raster erscheint
+zusätzlich zur freien GitHub-Version als kostenlose App im Mac App Store (Anbieter: Vllasa Ventures UG
+(haftungsbeschränkt), Bundle-ID `com.vllasa.raster`).
 
-## Das Problem
+## Der Weg bis hierher
 
-Apps im Mac App Store müssen in der App-Sandbox laufen (Review-Richtlinie 2.4.5 i). Die Sandbox sperrt
-standardmäßig die Accessibility-API gegenüber **anderen** Apps – genau die Schnittstelle, mit der Raster
-Fenster liest und verschiebt. Das Systemprotokoll nennt den Grund:
+1. **26.09.2026 – erster Ansatz:** Sandbox plus die Ausnahme
+   `com.apple.security.temporary-exception.mach-lookup.local-name` für `com.apple.axserver`. Damit funktionierte
+   die Accessibility-API auch in der Sandbox (gemessen mit `Raster --ax-probe`, siehe unten).
+2. **02.10.2026 – Ablehnung (Build 33):** Richtlinie 2.4.5(i), die Ausnahme wird nicht gewährt, und 2.4.5
+   („Accessibility-Missbrauch“). Apples Entwickler-Support bestätigt: Accessibility und App-Sandbox sind
+   unvereinbar; Magnet, Moom, BetterSnapTool und Co. laufen aus der Zeit vor der Sandbox-Pflicht ohne Sandbox.
+3. **08.10.2026 – Umbau:** Die Store-Version verwendet keine Accessibility mehr. Vorbild ist „941 Tiles“
+   (blakecrosley.com, Juli 2026 freigegeben): Fenster über die öffentliche Fensterliste lesen, den Zielrahmen
+   selbst berechnen, das Verschieben an Apples eigene Kurzbefehl-Aktionen abgeben.
 
-```
-Sandbox: Raster deny(1) mach-lookup com.apple.axserver (per-pid)
-```
+## Wie die Store-Version Fenster bewegt
 
-## Die Lösung
+- **Lesen:** `CGWindowListCopyWindowInfo` liefert Besitzer-App, Fensternummer und Rahmen aller sichtbaren
+  Fenster (`Sources/Raster/Core/WindowList.swift`). Keine Freigabe nötig, keine Fensterinhalte oder -titel.
+- **Rechnen:** Kacheln, Raster, Ränder wie bisher (`WindowManager`), unabhängig von der Fensterquelle
+  (`protocol WindowHandle`).
+- **Bewegen:** Ein Begleit-Kurzbefehl „Raster“ liegt im App-Paket (`Resources/Raster.shortcut`, erzeugt und
+  signiert von `scripts/make-shortcut.py`). Er besteht aus Apples Systemaktionen *Wörterbuch lesen → Fenster
+  suchen (App-Name, X- und Y-Position) → Fenstergröße ändern → Fenster bewegen → Fenstergröße ändern*.
+  Raster übergibt ihm `{"app":"TextEdit","x0":120,"y0":80,"x":0,"y":25,"w":756,"h":920}` und ruft ihn über den
+  dokumentierten Befehl `run shortcut … with input` von **Shortcuts Events** auf (`ShortcutEngine.swift`),
+  also per Apple-Event, im Hintergrund, ohne dass die Kurzbefehle-App in den Vordergrund kommt.
+- **Einrichtung:** Beim ersten Öffnen des Panels fragt macOS die Automation ab („Raster möchte Shortcuts
+  Events steuern“). Das Panel zeigt dann die Karte „Kurzbefehl „Raster“ hinzufügen“; ein Klick öffnet den
+  Kurzbefehl in der Kurzbefehle-App, dort ein Klick auf „Kurzbefehl hinzufügen“. Fertig.
 
-Eine einzige Ausnahme erlaubt der Sandbox genau diesen Zugriff:
+## Berechtigungen der Store-Version
 
 ```xml
-<key>com.apple.security.temporary-exception.mach-lookup.local-name</key>
-<array><string>com.apple.axserver</string></array>
+<key>com.apple.security.app-sandbox</key><true/>
+<key>com.apple.security.scripting-targets</key>
+<dict>
+    <key>com.apple.shortcuts.events</key>
+    <array><string>com.apple.shortcuts.run</string></array>
+</dict>
 ```
 
-`…mach-lookup.global-name` allein reicht nicht, `…local-name` allein reicht – es wird nur diese eine verwendet.
-Die Freigabe „Bedienungshilfen“ muss der Nutzer weiterhin selbst erteilen.
+Keine temporäre Ausnahme. `com.apple.shortcuts.run` ist die Zugriffsgruppe, die Shortcuts Events in seiner
+Skript-Definition (`sdef`) für den Befehl `run shortcut` deklariert. Der Store-Build bricht ab, wenn die
+Berechtigungen das Wort `temporary-exception` enthalten oder das Programm ein `_AX*`-Symbol importiert
+(`scripts/build-appstore.sh`).
 
 ## Gemessen
 
-Mit `Raster --ax-probe <pid>` gegen ein TextEdit-Fenster (Freigabe erteilt):
+Lokal mit der Store-Variante unter Sandbox (`scripts/build-store-local.sh`, gleiche Berechtigungen, lokale
+Signatur) und `Raster --shortcut-probe <pid>` gegen ein TextEdit-Fenster:
 
-| Variante | `AXWindows` von TextEdit | Fenster bewegt |
-|---|---|---|
-| ohne Sandbox (GitHub-Version) | ok | ✓ |
-| ohne Sandbox, Hardened Runtime (notarisierbar) | ok | ✓ |
-| Sandbox ohne Ausnahme | −25204 `cannotComplete` | ✗ |
-| Sandbox + Ausnahme `…global-name` | −25204 `cannotComplete` | ✗ |
-| Sandbox + Ausnahme `…local-name` | ok | ✓ |
-| Store-Binary (`-DAPPSTORE`) mit den Store-Berechtigungen, normal gestartet | ok, 8 von 8 sichtbaren Fenstern zugeordnet | ✓ |
+| Prüfung | Ergebnis |
+|---|---|
+| Programm importiert `_AX*`-Symbole | 0 (`nm -u`) |
+| Selbsttest (`--selftest`, beide Varianten) | 141 Prüfungen bestanden |
+| Kurzbefehl aus dem App-Paket importierbar | ✓ (Doppelklick/`open` → Kurzbefehle zeigt „Kurzbefehl hinzufügen“) |
+| `run shortcut` aus der Sandbox nur mit `scripting-targets` | ✓ – Automations-Abfrage erscheint einmal, danach kein Dialog; keine temporäre Ausnahme nötig |
+| Fenster über den Kurzbefehl bewegt und Rahmen wie berechnet | ✓ – TextEdit: Ziel (0, 33, 756, 920) → Fensterliste (0, 33, 756, 920) |
+| Laufzeit eines Aufrufs (`run shortcut` über Shortcuts Events) | 0,2 s warm, 2,6 s beim allerersten Aufruf |
+| Tastenkürzel in der laufenden Sandbox-App (Hälften, Maximieren + Wiederherstellen, Zyklus, Raster, Nebeneinander, Fokus + Stapel) | ✓ alle |
+
+Gemessene Eigenheiten: Die Aktion „Fenster suchen“ vergleicht X/Y-Position in globalen Bildschirmpunkten mit
+Ursprung oben links, also genau den Werten der Fensterliste (`kCGWindowBounds`). Der Window-Server meldet den
+neuen Rahmen erst kurz nach der Rückkehr des Kurzbefehls – `ShortcutWindow.setFrame` liest deshalb bis 0,5 s
+nach, bis der Rahmen am Ziel oder stabil ist (sonst galt ein bewegtes Fenster als „abgelehnt“). Minimierte
+Fenster fehlen in der Fensterliste und werden beim Kacheln ausgelassen.
+
+Zum Vergleich die Messung des ersten Ansatzes (26.09.2026, `Raster --ax-probe`): ohne Sandbox ok; Sandbox ohne
+Ausnahme −25204 `cannotComplete`; Sandbox mit `…mach-lookup.local-name com.apple.axserver` ok. Dieser Weg ist
+seit der Ablehnung vom 02.10.2026 geschlossen.
 
 ## Was die Store-Version sonst anders macht
 
-- keine privaten Schnittstellen (Fensteridentität über das AX-Element, Zuordnung zur Fensterliste über App und Rahmen)
+- keine Accessibility, keine Freigabe „Bedienungshilfen“, keine privaten Schnittstellen
 - kein Snapshot-Modus (der nutzt `CGWindowListCreateImage`)
 - Autostart erst nach ausdrücklicher Zustimmung (Richtlinie 2.4.5 iii)
+- Fensteridentität über die Fensternummer der Fensterliste; der Kurzbefehl findet das Fenster über App-Name
+  und aktuelle Position, deshalb werden Positionen ganzzahlig übergeben
 
 ## Risiko
 
-Apple prüft Ausnahme-Berechtigungen einzeln. Die Begründung steht im Prüferhinweis
-(`appstore/metadata.json`, `review_notes`). Lehnt Apple sie ab, bleibt die GitHub-Version – dort zusätzlich
-mit Developer-ID-Signatur und Notarisierung (`scripts/notarize.sh`), sobald das Developer-ID-Zertifikat vorliegt.
-
-Die bekannten älteren Fenster-Manager im Store (Magnet, BetterSnapTool, Divvy, Cinch, SplitScreen) stammen aus der
-Zeit vor der Sandbox-Pflicht und laufen ohne Sandbox – bei SplitScreen nachgeprüft (`codesign -d --entitlements -`).
+Apple hat mit 941 Tiles im Juli 2026 genau dieses Muster freigegeben. Offen bleibt, ob der Prüfer die
+Einrichtung (Automations-Abfrage, Kurzbefehl hinzufügen) als zumutbar ansieht; die Schritte stehen im
+Prüferhinweis (`appstore/review-notes.txt`) und im Bildschirmvideo. Lehnt Apple erneut ab, bleibt die
+GitHub-Version mit Accessibility – dort zusätzlich mit Developer-ID-Signatur und Notarisierung
+(`scripts/notarize.sh`), sobald das Developer-ID-Zertifikat vorliegt.
