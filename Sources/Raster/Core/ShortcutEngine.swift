@@ -57,6 +57,13 @@ enum ShortcutRunner {
         try await execute(ShortcutPayload.existsScript()).booleanValue
     }
 
+    /// Leerlauf-Aufruf: findet kein Fenster und ändert nichts (gemessen: 0,2 s, keine Meldung). Löst beim ersten
+    /// Mal die Automations-Abfrage aus – die Existenzprüfung allein tut das nicht (nur lesender Befehl), die
+    /// Abfrage käme sonst überraschend beim ersten Tastenkürzel und ließe es ins Leere laufen.
+    static func warmUp() async throws {
+        _ = try await execute(ShortcutPayload.runScript(input: ShortcutPayload.noopJSON, timeout: 120))
+    }
+
     private static func execute(_ source: String) async throws -> NSAppleEventDescriptor {
         try await withCheckedThrowingContinuation { continuation in
             queue.async {
@@ -99,12 +106,15 @@ final class ShortcutSetup {
 
     private init() {}
 
-    /// Fragt „Shortcuts Events“, ob der Kurzbefehl existiert. Beim ersten Mal zeigt macOS die Automations-Abfrage.
+    /// Fragt „Shortcuts Events“, ob der Kurzbefehl existiert, und führt ihn einmal leer aus – dabei zeigt
+    /// macOS beim ersten Mal die Automations-Abfrage, also hier bei der Einrichtung statt beim ersten Kürzel.
     func refresh() async {
         guard status != .checking else { return }
         status = .checking
         do {
-            status = try await ShortcutRunner.isInstalled() ? .ready : .notInstalled
+            guard try await ShortcutRunner.isInstalled() else { status = .notInstalled; return }
+            try await ShortcutRunner.warmUp()
+            status = .ready
         } catch ShortcutError.automationDenied {
             status = .automationDenied
         } catch ShortcutError.notInstalled {

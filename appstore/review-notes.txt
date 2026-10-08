@@ -5,8 +5,8 @@ Raster no longer uses the Accessibility API at all, and the temporary sandbox ex
 How windows are moved now: Raster reads window positions with the public CGWindowList API (no permission needed) and computes the target frame itself. The actual move/resize is done by Apple's own Shortcuts actions "Find Windows", "Resize Window" and "Move Window" in a companion shortcut named "Raster" that ships inside the app bundle. Raster runs it via the documented "run shortcut" command of Shortcuts Events (Apple events, user consent through the standard Automation prompt). Shortcuts itself requests no Accessibility permission; the window actions are Apple system actions.
 
 SETUP AND TEST
-1. Launch Raster. Click the Raster icon in the menu bar to open the panel. macOS asks "Raster wants access to control Shortcuts Events" - click Allow.
-2. The panel shows "Add the 'Raster' shortcut". Click "Add shortcut": the Shortcuts app opens with the bundled shortcut - click "Add Shortcut". Back in the Raster panel the hint disappears (or click "Check again").
+1. Launch Raster. The panel opens under its menu bar icon and shows "Add the 'Raster' shortcut". Click "Add shortcut": the Shortcuts app opens with the bundled shortcut - click "Add Shortcut".
+2. Back in the Raster panel click "Check again" (or reopen the panel). macOS now asks "Raster wants access to control Shortcuts Events" - click Allow. The hint disappears; Raster is ready.
 3. Click a window of another app (e.g. TextEdit) and press Command + Left/Right Arrow for the left/right half, Command + Up Arrow to maximize (again to restore), or click a tile in the panel.
 4. Control + Option + A arranges all windows as a grid, Control + Option + S side by side, Control + Option + M as focus + stack.
 5. The gear button in the panel opens the settings (shortcuts, gap, launch at login). Right-click the icon for Settings, Pause Shortcuts and Quit.

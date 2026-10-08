@@ -9,8 +9,8 @@ GUIDELINE 2.4.5 - ACCESSIBILITY
 Raster no longer uses the Accessibility API in any way. The binary contains no Accessibility symbols and the app never asks for the Accessibility permission. Window geometry is read with the public CGWindowList API, which needs no permission. Moving and resizing is delegated to Apple's own Shortcuts actions ("Find Windows", "Resize Window", "Move Window", part of macOS since Monterey): the app ships a small companion shortcut named "Raster" and runs it through the documented "run shortcut" command of Shortcuts Events. The user adds the shortcut once with one click and allows the automation through the standard macOS prompt.
 
 HOW TO TEST
-1. Launch Raster and click its menu bar icon. Allow the automation prompt ("Raster wants access to control Shortcuts Events").
-2. In the panel click "Add shortcut", then "Add Shortcut" in the Shortcuts app that opens.
+1. Launch Raster. The panel opens and offers "Add shortcut": click it, then "Add Shortcut" in the Shortcuts app that opens.
+2. Back in the panel click "Check again". Allow the standard automation prompt ("Raster wants access to control Shortcuts Events").
 3. Click a TextEdit window and press Command + Left Arrow / Right Arrow, or click a tile in the panel.
 
 The Notes field of the App Review Information has been updated with the same steps. A new screen recording of this flow is attached.

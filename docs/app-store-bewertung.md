@@ -29,9 +29,11 @@ zusätzlich zur freien GitHub-Version als kostenlose App im Mac App Store (Anbie
   Raster übergibt ihm `{"app":"TextEdit","x0":120,"y0":80,"x":0,"y":25,"w":756,"h":920}` und ruft ihn über den
   dokumentierten Befehl `run shortcut … with input` von **Shortcuts Events** auf (`ShortcutEngine.swift`),
   also per Apple-Event, im Hintergrund, ohne dass die Kurzbefehle-App in den Vordergrund kommt.
-- **Einrichtung:** Beim ersten Öffnen des Panels fragt macOS die Automation ab („Raster möchte Shortcuts
-  Events steuern“). Das Panel zeigt dann die Karte „Kurzbefehl „Raster“ hinzufügen“; ein Klick öffnet den
-  Kurzbefehl in der Kurzbefehle-App, dort ein Klick auf „Kurzbefehl hinzufügen“. Fertig.
+- **Einrichtung:** Beim ersten Öffnen zeigt das Panel die Karte „Kurzbefehl „Raster“ hinzufügen“; ein Klick
+  öffnet den Kurzbefehl in der Kurzbefehle-App, dort ein Klick auf „Kurzbefehl hinzufügen“. Zurück im Panel
+  („Erneut prüfen“) führt Raster den Kurzbefehl einmal leer aus – dabei fragt macOS die Automation ab („Raster
+  möchte Shortcuts Events steuern“, Erlauben). Fertig. Gemessen: Die reine Existenzprüfung (`exists shortcut`)
+  löst die Abfrage nicht aus; ohne den Leerlauf-Aufruf käme sie erst beim ersten Tastenkürzel.
 
 ## Berechtigungen der Store-Version
 

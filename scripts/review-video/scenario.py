@@ -19,7 +19,7 @@ RASTER = "com.vllasa.raster"
 APP_PATH = os.environ.get("RASTER_APP_PATH")   # Raster.app aus diesem Pfad statt aus /Programme starten (Testvariante)
 BUILD = os.environ.get("RASTER_BUILD") or subprocess.run(["git", "rev-list", "--count", "HEAD"], capture_output=True, text=True).stdout.strip()
 DEMO = ""  # Pfad des Demo-Ordners, wird in setup()/record() gesetzt
-DEMO_APPS = {"com.apple.finder", "com.apple.TextEdit", RASTER, "com.apple.systempreferences", "com.apple.shortcuts"}
+DEMO_APPS = {"com.apple.finder", "com.apple.TextEdit", RASTER, "com.apple.systempreferences"}
 
 
 def osa(script):
@@ -89,6 +89,7 @@ def setup(folder):
         osa(f'tell application "System Events" to set visible of (first application process whose bundle identifier is "{b}") to false')
     quit_if_running("System Settings")
     quit_if_running("Raster")
+    quit_if_running("Shortcuts")                      # öffnet sich in der Aufnahme frisch mit dem Import-Fenster
     # Schreibtischsymbole ausblenden (private Dateinamen), Zustand merken
     save_original()
     subprocess.run(["defaults", "write", "com.apple.finder", "CreateDesktop", "-bool", "false"])
@@ -101,6 +102,7 @@ def setup(folder):
     osa('tell application "Finder" to close every window')
     osa(f'tell application "Finder" to open POSIX file "{demo}"')
     time.sleep(1)
+    osa('tell application "Finder" to set current view of front window to icon view')
     osa('tell application "Finder" to set sidebar width of front window to 0')
     for name in docs:
         subprocess.run(["open", "-a", "TextEdit", os.path.join(demo, name)])
@@ -227,7 +229,7 @@ def allow_automation(timeout=6):
         unc = d.app("com.apple.UserNotificationCenter")
         if unc is not None:
             for el, _ in d.walk(unc, max_depth=8):
-                if d.attr(el, "AXRole") == "AXButton" and d.label(el).strip().lower() in ("erlauben", "ok", "allow"):
+                if d.attr(el, "AXRole") == "AXButton" and d.label(el).split(" | ")[0].strip().lower() in ("erlauben", "ok", "allow"):
                     time.sleep(1.2)                       # Dialog kurz stehen lassen, damit man ihn lesen kann
                     d.click(*d.center(el))
                     return True
@@ -337,36 +339,38 @@ def run():
     d.mark("The panel shows every layout as a tile, together with its keyboard shortcut", 4)
     wait(3.2)
 
-    # 3. Einrichtung der Store-Version: Automation erlauben, Kurzbefehl hinzufügen (keine Bedienungshilfen)
-    if allow_automation(timeout=4):
-        d.mark("macOS asks once whether Raster may control Shortcuts Events. The user allows it", 5)
-        wait(2.5)
+    # 3. Einrichtung der Store-Version: Kurzbefehl hinzufügen, dann Automation erlauben (keine Bedienungshilfen)
     btn = setup_card(a, timeout=1)
     if btn is not None:
         d.mark("Raster needs its companion shortcut. No Accessibility permission is requested", 5)
         wait(2.5)
         d.move(*d.center(btn), 0.6); wait(0.3); d.click(*d.center(btn)); wait(3.5)
-        d.mark("Shortcuts shows the bundled shortcut: Find Windows, Resize Window, Move Window", 6)
+        d.mark("The Shortcuts app opens with the bundled shortcut. Click Add Shortcut", 6)
         add = shortcuts_button("hinzufügen", timeout=12)
-        wait(4)
+        wait(3)
         if add is None:
             raise SystemExit("Kurzbefehle: Knopf „Kurzbefehl hinzufügen“ nicht gefunden")
-        d.mark("Click Add Shortcut", 3)
         d.move(*d.center(add), 0.6); wait(0.3); d.click(*d.center(add)); wait(2.5)
         quit_if_running("Shortcuts"); quit_if_running("Kurzbefehle"); wait(1.5)
         open_panel(a); wait(0.5)
         again = panel_element(a, "AXButton", "Erneut prüfen", timeout=1)
         if again is not None:
-            d.click(*d.center(again))
+            d.move(*d.center(again), 0.5); wait(0.2); d.click(*d.center(again))
+        if allow_automation(timeout=8):
+            d.mark("macOS asks once whether Raster may control Shortcuts Events. The user allows it", 5)
+            wait(3)
         end = time.time() + 15
         while time.time() < end and setup_card(a, timeout=0.3) is not None:
             time.sleep(0.3)
-        if setup_card(a, timeout=0.3) is not None:
+        if setup_card(a, timeout=0.3) is not None or panel_element(a, "AXButton", "Erneut prüfen", timeout=0.3) is not None:
             raise SystemExit("Einrichtungskarte verschwindet nicht")
         wait(1)
-        d.mark("Shortcut added. Raster is ready, no restart needed", 3)
-        wait(2.5)
+        d.mark("Shortcut added, automation allowed. Raster is ready, no restart needed", 4)
+        wait(3)
     else:
+        if allow_automation(timeout=6):
+            d.mark("macOS asks once whether Raster may control Shortcuts Events. The user allows it", 5)
+            wait(3)
         d.mark("The companion shortcut was already added. Raster is ready", 3)
         wait(2.5)
 

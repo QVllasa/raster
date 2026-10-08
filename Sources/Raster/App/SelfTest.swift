@@ -464,9 +464,12 @@ enum SelfTest {
         let odd = ShortcutPayload.json(app: #"A "B" \ C"#, current: .zero, target: .zero)
         check(odd.hasPrefix(#"{"app":"A \"B\" \\ C""#), "Anführungszeichen und Backslash im App-Namen werden maskiert, erhalten \(odd)")
         check(odd.data(using: .utf8).flatMap { try? JSONSerialization.jsonObject(with: $0) } != nil, "Ergebnis ist gültiges JSON")
+        check(ShortcutPayload.noopJSON == #"{"app":"Raster","x0":-1,"y0":-1,"x":0,"y":0,"w":0,"h":0}"#,
+              "Leerlauf-Eingabe trifft kein Fenster, erhalten \(ShortcutPayload.noopJSON)")
     }
 
     static func testShortcutScripts() {
+        check(ShortcutPayload.runScript(input: "{}", timeout: 120).contains("with timeout of 120 seconds"), "Zeitlimit einstellbar")
         let script = ShortcutPayload.runScript(input: #"{"app":"TextEdit"}"#)
         check(script.contains(#"run shortcut "Raster" with input "{\"app\":\"TextEdit\"}""#),
               "JSON wird für AppleScript maskiert, erhalten \(script)")
