@@ -1,6 +1,6 @@
 Hello App Review team,
 
-thank you for the detailed feedback on build 33. We have rebuilt Raster so that both points are resolved:
+thank you for the detailed feedback on build 33. We have rebuilt Raster so that both points are resolved. The new build is 1.0.0 (38).
 
 GUIDELINE 2.4.5(i) - TEMPORARY ENTITLEMENT EXCEPTION
 The exception com.apple.security.temporary-exception.mach-lookup.local-name (com.apple.axserver) has been removed. The new build requests no temporary exception at all. Its entitlements are com.apple.security.app-sandbox and com.apple.security.scripting-targets with the single target com.apple.shortcuts.events / access group com.apple.shortcuts.run (the access group declared in the scripting definition of Shortcuts Events).
