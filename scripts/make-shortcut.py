@@ -133,6 +133,7 @@ def main() -> int:
     if result.returncode != 0 or not signed.exists():
         print(f"✗ Signieren fehlgeschlagen: {result.stderr.strip() or result.stdout.strip()}")
         return 1
+    signed.chmod(0o644)   # „shortcuts sign“ schreibt 600 – im App-Paket muss die Datei für alle lesbar sein (Upload-Fehler 90255)
     print(f"✓ {signed} ({signed.stat().st_size} Bytes)")
     return 0
 

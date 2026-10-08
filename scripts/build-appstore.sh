@@ -46,6 +46,7 @@ python3 scripts/make-shortcut.py --out .build-store/shortcut
 echo "▸ Setze App-Paket zusammen …"
 rm -rf "$OUT" && mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp .build-store/shortcut/Raster.shortcut "$APP/Contents/Resources/"
+chmod 644 "$APP/Contents/Resources/Raster.shortcut"
 lipo -create -output "$APP/Contents/MacOS/Raster" "$SLICES/Raster-arm64" "$SLICES/Raster-x86_64"
 strip -x "$APP/Contents/MacOS/Raster"
 sed -e "s/__VERSION__/$VERSION/" -e "s/__BUILD__/$BUILD/" -e "s/io.github.qvllasa.raster/$BUNDLE_ID/" \

@@ -16,6 +16,7 @@ import Quartz
 import drive as d
 
 RASTER = "com.vllasa.raster"
+APP_PATH = os.environ.get("RASTER_APP_PATH")   # Raster.app aus diesem Pfad statt aus /Programme starten (Testvariante)
 BUILD = os.environ.get("RASTER_BUILD") or subprocess.run(["git", "rev-list", "--count", "HEAD"], capture_output=True, text=True).stdout.strip()
 DEMO = ""  # Pfad des Demo-Ordners, wird in setup()/record() gesetzt
 DEMO_APPS = {"com.apple.finder", "com.apple.TextEdit", RASTER, "com.apple.systempreferences", "com.apple.shortcuts"}
@@ -185,10 +186,10 @@ def textedit_window(title):
     return None
 
 
-def finder_item(name):
+def finder_item(name, window_title="Programme"):
     f = d.app("com.apple.finder")
     for w in d.attr(f, "AXWindows") or []:
-        if d.attr(w, "AXTitle") == "Programme":
+        if d.attr(w, "AXTitle") == window_title:
             for el, _ in d.walk(w, max_depth=12):
                 if d.attr(el, "AXRole") in ("AXImage", "AXTextField", "AXStaticText", "AXGroup") and (d.attr(el, "AXTitle") == name or d.attr(el, "AXValue") == name or d.attr(el, "AXDescription") == name):
                     if d.frame(el):
@@ -308,23 +309,27 @@ def wait(s):
 
 def run():
     # 1. Start
-    d.mark(f"Raster 1.0 (build {BUILD}) on macOS 27: launching the app from the Applications folder", 9)
+    d.mark(f"Raster 1.0 (build {BUILD}) on macOS 27: launching the app", 9)
     fw_ = finder_window()
     d.press_action(fw_, "AXRaise")
     osa('tell application "Finder" to activate'); wait(0.4)
     fx, fy, fwid, fh = d.frame(fw_)
     d.move(fx + fwid * 0.5, fy + fh * 0.6, 0.6); wait(0.8)   # Maus sichtbar zum Finder, kein Klick (Finder ist aktiv)
-    d.key("a", d.CMD, d.SHIFT); wait(1.5)            # Gehe zu → Programme (im selben Fenster)
-    osa('tell application "Finder"\nactivate\nselect file "Raster.app" of folder "Applications" of startup disk\nend tell')
+    if APP_PATH:                                      # Testvariante: Ordner der App im selben Fenster öffnen
+        osa(f'tell application "Finder" to set target of front window to POSIX file "{os.path.dirname(APP_PATH)}"'); wait(1.5)
+        osa(f'tell application "Finder"\nactivate\nselect POSIX file "{APP_PATH}"\nend tell')
+    else:
+        d.key("a", d.CMD, d.SHIFT); wait(1.5)        # Gehe zu → Programme (im selben Fenster)
+        osa('tell application "Finder"\nactivate\nselect file "Raster.app" of folder "Applications" of startup disk\nend tell')
     wait(1.2)
-    icon = finder_item("Raster")
+    icon = finder_item("Raster", os.path.basename(os.path.dirname(APP_PATH)) if APP_PATH else "Programme")
     if icon is not None:
         d.move(*d.center(icon), 0.7); wait(0.3); d.double_click(*d.center(icon))
     else:
         d.key("o", d.CMD)
     wait(2.5)
     a = raster_app()
-    osa('tell application "Finder" to set target of (first window whose name is "Programme") to POSIX file "' + DEMO + '"'); wait(0.8)
+    osa('tell application "Finder" to set target of front window to POSIX file "' + DEMO + '"'); wait(0.8)
 
     # 2. Panel über das Menüleistensymbol
     d.mark("Raster now sits in the menu bar. Clicking its icon opens the panel", 4)
