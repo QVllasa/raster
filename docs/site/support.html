@@ -16,8 +16,10 @@
 <p class="lead">Questions, problems or ideas about Raster? Email <a href="mailto:info@vllasa.com">info@vllasa.com</a> or open an <a href="https://github.com/QVllasa/raster/issues">issue on GitHub</a>. We usually reply within two business days.</p>
 <h2>Where is Raster after launching it?</h2>
 <p>Raster is a menu bar app and does not appear in the Dock. Its item sits in the top-right of the menu bar; on first launch the panel opens by itself. Click the item to open the panel with all layouts, right-click for a small menu with Settings, “Pause shortcuts” and “Quit Raster”.</p>
-<h2>Why does Raster ask for the Accessibility permission?</h2>
-<p>macOS only lets an app move or resize the windows of other apps when you allow it under Accessibility. Raster uses this permission for exactly one thing: reading and setting the position and size of windows. It never reads window contents or your keystrokes. To grant it, open System Settings → Privacy &amp; Security → Accessibility and turn on Raster. The shortcuts work immediately, no restart needed. If Raster still does nothing, remove it from the list with the “−” button, add it again and turn it on – this helps after updating from the GitHub version to the App Store version.</p>
+<h2>How do I set up the App Store version?</h2>
+<p>The App Store version moves windows through Apple’s own Shortcuts app and needs no Accessibility permission. On first launch Raster asks you to add the bundled “Raster” shortcut: the Shortcuts app opens, click “Add Shortcut”. Then macOS asks once whether Raster may control Shortcuts – confirm with “Allow”. That’s it; the panel shows “Set up” and the shortcuts work right away. If Raster does nothing later, open System Settings → Privacy &amp; Security → Automation and turn on “Shortcuts” under Raster, and check that the “Raster” shortcut still exists in the Shortcuts app.</p>
+<h2>Why does the GitHub version ask for the Accessibility permission?</h2>
+<p>The GitHub version moves windows directly, and macOS only allows that when you grant the Accessibility permission. Raster uses it for exactly one thing: reading and setting the position and size of windows. It never reads window contents or your keystrokes. To grant it, open System Settings → Privacy &amp; Security → Accessibility and turn on Raster. The shortcuts work immediately, no restart needed. If Raster still does nothing, remove it from the list with the “−” button, add it again and turn it on.</p>
 <h2>How do I change a shortcut?</h2>
 <p>Open Settings from the panel (gear button) or the right-click menu. Click the shortcut next to a layout, then press the new key combination. <kbd>⌫</kbd> removes the shortcut, <kbd>⎋</kbd> cancels. “Reset” brings back the defaults.</p>
 <h2>I need ⌘← and ⌘→ in text fields</h2>
@@ -29,7 +31,7 @@
 <h2>How do I quit Raster?</h2>
 <p>Right-click the Raster item and choose “Quit Raster” – or open Settings and click “Quit”.</p>
 <h2>Can I have both the App Store and the GitHub version installed?</h2>
-<p>Please use only one at a time. Both register the same shortcuts, so they would get in each other's way. If you switch, quit the old one, delete it from the Applications folder and grant the Accessibility permission to the new one.</p>
+<p>Please use only one at a time. Both register the same shortcuts, so they would get in each other's way. If you switch, quit the old one and delete it from the Applications folder. The App Store version then guides you through adding its shortcut; the GitHub version asks for the Accessibility permission.</p>
 <h2>Which languages are supported?</h2>
 <p>English and German. Raster follows the language set in System Settings → General → Language &amp; Region.</p>
 <h2>System requirements</h2>

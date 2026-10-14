@@ -12,7 +12,7 @@
 <p align="center">
   <a href="https://github.com/QVllasa/raster/releases/latest"><b>⬇︎ Raster herunterladen</b></a> ·
   macOS 26 Tahoe · Apple Silicon &amp; Intel · Deutsch &amp; Englisch · kostenlos &amp; Open Source (MIT)<br>
-  Bald auch im Mac App Store · <a href="https://qvllasa.github.io/raster/">Website</a>
+  <a href="https://apps.apple.com/app/id6816286802"><b>Im Mac App Store laden</b></a> · <a href="https://qvllasa.github.io/raster/">Website</a>
 </p>
 
 <p align="center">
@@ -50,6 +50,10 @@
 
 ## Installation
 
+**Mac App Store (empfohlen):** [Raster im Mac App Store](https://apps.apple.com/app/id6816286802) laden und starten. Die Store-Version braucht keine Freigabe „Bedienungshilfen“: Sie bewegt Fenster über Apples Kurzbefehle-App. Beim ersten Start fügst du den mitgelieferten Kurzbefehl „Raster“ mit einem Klick hinzu und bestätigst die Abfrage „Automation“ mit „Erlauben“. Updates kommen automatisch über den App Store.
+
+**GitHub-Version:**
+
 1. [`Raster-x.y.z.zip` aus dem neuesten Release](https://github.com/QVllasa/raster/releases/latest) laden, entpacken und `Raster.app` in den Ordner **Programme** ziehen.
 2. Raster ist frei verteilt und nicht bei Apple notariell beglaubigt. Beim ersten Start meldet macOS deshalb, dass die App nicht überprüft werden konnte. So öffnest du sie trotzdem:
    - **Systemeinstellungen → Datenschutz & Sicherheit →** ganz unten bei „Raster wurde blockiert“ auf **Trotzdem öffnen** klicken, **oder**
@@ -60,7 +64,7 @@ Voraussetzung ist **macOS 26 (Tahoe)** oder neuer, weil Raster das neue Liquid-G
 
 ## Datenschutz
 
-Raster sammelt nichts, sendet nichts und stellt keine einzige Netzwerkverbindung her. Die Freigabe „Bedienungshilfen“ wird ausschließlich genutzt, um Position und Größe von Fenstern zu lesen und zu setzen. Der gesamte Quelltext liegt hier – rund 2 600 Zeilen Swift, ohne Fremdbibliotheken.
+Raster sammelt nichts, sendet nichts und stellt keine einzige Netzwerkverbindung her. Die GitHub-Version nutzt die Freigabe „Bedienungshilfen“ ausschließlich, um Position und Größe von Fenstern zu lesen und zu setzen; die App-Store-Version kommt ohne sie aus und läuft in der App-Sandbox ohne Netzwerkberechtigung. Der gesamte Quelltext liegt hier – rund 2 600 Zeilen Swift, ohne Fremdbibliotheken.
 
 ## Selbst bauen
 
